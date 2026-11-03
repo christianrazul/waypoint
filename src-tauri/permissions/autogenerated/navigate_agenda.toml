@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-navigate-agenda"
+description = "Enables the navigate_agenda command without any pre-configured scope."
+commands.allow = ["navigate_agenda"]
+
+[[permission]]
+identifier = "deny-navigate-agenda"
+description = "Denies the navigate_agenda command without any pre-configured scope."
+commands.deny = ["navigate_agenda"]

@@ -1,3 +1,4 @@
+mod agenda;
 mod platform;
 mod shortcuts;
 mod tray;
@@ -148,6 +149,39 @@ fn set_picker_open(app: AppHandle, open: bool) -> Result<(), String> {
     windows::set_picker_open(&app, open).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn get_agenda_state(app: AppHandle) -> Result<agenda::AgendaState, String> {
+    agenda::get(&app)
+}
+
+#[tauri::command]
+fn toggle_sticky(app: AppHandle) -> Result<agenda::AgendaState, String> {
+    agenda::toggle(&app)
+}
+
+#[tauri::command]
+fn navigate_agenda(
+    app: AppHandle,
+    direction: agenda::Direction,
+) -> Result<agenda::AgendaState, String> {
+    agenda::navigate(&app, direction)
+}
+
+#[tauri::command]
+fn set_agenda_item_done(
+    app: AppHandle,
+    section_id: String,
+    item_id: String,
+    done: bool,
+) -> Result<agenda::AgendaState, String> {
+    agenda::set_done(&app, &section_id, &item_id, done)
+}
+
+#[tauri::command]
+fn resize_sticky(app: AppHandle, height: f64) -> Result<f64, String> {
+    windows::resize_sticky(&app, height)
+}
+
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -157,6 +191,7 @@ pub fn run() {
 
     builder
         .manage(AppState::default())
+        .manage(windows::StickyLayout::default())
         .invoke_handler(tauri::generate_handler![
             get_drawing_state,
             select_tool,
@@ -169,13 +204,20 @@ pub fn run() {
             set_color,
             clear_annotations,
             close_hotbar,
-            set_picker_open
+            set_picker_open,
+            get_agenda_state,
+            toggle_sticky,
+            navigate_agenda,
+            set_agenda_item_done,
+            resize_sticky
         ])
         .setup(|app| {
             platform::init_app(app);
             let handle = app.handle();
+            agenda::init(handle)?;
             windows::create_overlay(handle)?;
             windows::create_hotbar(handle)?;
+            windows::create_sticky(handle)?;
             tray::create(handle)?;
             Ok(())
         })

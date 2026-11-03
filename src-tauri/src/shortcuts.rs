@@ -1,8 +1,11 @@
-use crate::windows;
+use crate::{agenda, windows};
 use tauri::{plugin::TauriPlugin, AppHandle, Emitter, Wry};
 use tauri_plugin_global_shortcut::{Builder, Code, GlobalShortcutExt, Modifiers, ShortcutState};
 
 pub const TOGGLE_DRAWING: &str = "ctrl+alt+KeyD";
+pub const TOGGLE_STICKY: &str = "ctrl+alt+KeyS";
+pub const NEXT_SECTION: &str = "ctrl+alt+ArrowRight";
+pub const PREVIOUS_SECTION: &str = "ctrl+alt+ArrowLeft";
 #[cfg(target_os = "macos")]
 const DRAWING_SHORTCUTS: [&str; 3] = ["Escape", "super+KeyZ", "super+shift+KeyZ"];
 #[cfg(target_os = "windows")]
@@ -43,13 +46,21 @@ pub fn set_annotation_shortcuts(app: &AppHandle, enabled: bool) -> Result<(), St
 
 pub fn plugin() -> TauriPlugin<Wry> {
     Builder::new()
-        .with_shortcuts([TOGGLE_DRAWING])
+        .with_shortcuts([
+            TOGGLE_DRAWING,
+            TOGGLE_STICKY,
+            NEXT_SECTION,
+            PREVIOUS_SECTION,
+        ])
         .expect("valid shortcut")
         .with_handler(|app, shortcut, event| {
             if event.state() != ShortcutState::Pressed {
                 return;
             }
             let result = match shortcut.key {
+                Code::KeyS => agenda::toggle(app).map(|_| ()),
+                Code::ArrowRight => agenda::navigate(app, agenda::Direction::Next).map(|_| ()),
+                Code::ArrowLeft => agenda::navigate(app, agenda::Direction::Previous).map(|_| ()),
                 Code::Escape => windows::set_click_through(app, true),
                 Code::KeyZ => app
                     .emit(

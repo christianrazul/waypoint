@@ -5,7 +5,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
 use crate::platform::Level;
-use crate::{windows, AppState};
+use crate::{agenda, windows, AppState};
 
 const TOGGLE_PANEL: &str = "toggle_panel";
 const CLICK_THROUGH: &str = "click_through";
@@ -15,6 +15,7 @@ const QUIT: &str = "quit";
 /// Menu items whose checked state mirrors app state.
 pub struct TrayItems {
     click_through: CheckMenuItem<Wry>,
+    sticky: CheckMenuItem<Wry>,
     levels: Vec<(Level, CheckMenuItem<Wry>)>,
 }
 
@@ -28,6 +29,16 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         "Click-through (⌃⌥D)",
         true,
         !state.drawing.lock().unwrap().armed,
+        None::<&str>,
+    )?;
+    let sticky = CheckMenuItem::with_id(
+        app,
+        "sticky_toggle",
+        "Waypoint sticky (Ctrl+Option+S)",
+        true,
+        agenda::get(app)
+            .map(|state| state.settings.enabled)
+            .unwrap_or(false),
         None::<&str>,
     )?;
     let levels = Level::ALL
@@ -61,13 +72,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
                 false,
                 None::<&str>,
             )?,
-            &MenuItem::with_id(
-                app,
-                "sticky_toggle",
-                "Toggle sticky (coming soon)",
-                false,
-                None::<&str>,
-            )?,
+            &sticky,
             &click_through,
             &level_menu,
             &MenuItem::with_id(app, "undo", "Undo annotation", true, None::<&str>)?,
@@ -86,6 +91,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
 
     app.manage(TrayItems {
         click_through,
+        sticky,
         levels,
     });
 
@@ -111,6 +117,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             let id = event.id().as_ref();
             let result = match id {
                 TOGGLE_PANEL => windows::toggle_hotbar(app),
+                "sticky_toggle" => agenda::toggle(app).map(|_| ()),
                 CLICK_THROUGH => windows::toggle_click_through(app),
                 CLEAR | "undo" | "redo" => windows::end_text_edit(app).and_then(|()| {
                     app.emit(
@@ -147,6 +154,9 @@ pub fn sync(app: &AppHandle) {
         return;
     };
     let state = app.state::<AppState>();
+    if let Ok(agenda) = agenda::get(app) {
+        let _ = items.sticky.set_checked(agenda.settings.enabled);
+    }
     let _ = items
         .click_through
         .set_checked(!state.drawing.lock().unwrap().armed);

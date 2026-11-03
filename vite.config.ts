@@ -5,6 +5,7 @@ import react from "@vitejs/plugin-react";
 const entries = {
   overlay: "overlay.html",
   hotbar: "hotbar.html",
+  sticky: "sticky.html",
 };
 
 export default defineConfig({

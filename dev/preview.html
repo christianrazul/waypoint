@@ -62,11 +62,21 @@
         height: 112px;
         border: 0;
       }
+      #sticky {
+        position: absolute;
+        left: -8px;
+        bottom: -16px;
+        width: 556px;
+        height: 416px;
+        border: 0;
+        visibility: hidden;
+      }
       .controls {
         position: absolute;
         bottom: 18px;
-        left: 24px;
+        right: 24px;
         display: flex;
+        justify-content: flex-end;
         align-items: center;
         gap: 8px;
         font-size: 12px;
@@ -97,7 +107,8 @@
     <div class="controls">
       <button id="undo">Undo</button><button id="redo">Redo</button
       ><button id="clear">Clear</button
-      ><span>Browser preview · native focus and shortcuts are simulated</span>
+      ><button id="reset-agenda">Reset agenda</button
+      ><span>Browser preview · native focus simulated</span>
     </div>
     <script type="module" src="/dev/preview.js"></script>
   </body>

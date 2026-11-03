@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-agenda-state"
+description = "Enables the get_agenda_state command without any pre-configured scope."
+commands.allow = ["get_agenda_state"]
+
+[[permission]]
+identifier = "deny-get-agenda-state"
+description = "Denies the get_agenda_state command without any pre-configured scope."
+commands.deny = ["get_agenda_state"]

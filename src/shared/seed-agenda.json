@@ -1,0 +1,50 @@
+{
+  "agenda": {
+    "id": "waypoint-default",
+    "name": "Presentation agenda",
+    "sections": [
+      { "id": "intro", "title": "Intro and goals", "items": [] },
+      { "id": "problem", "title": "The problem", "items": [] },
+      {
+        "id": "architecture",
+        "title": "Architecture overview",
+        "items": [
+          {
+            "id": "request-path",
+            "text": "Walk the request path from client to services",
+            "optional": false,
+            "details": ["Point at the gateway box"],
+            "done": false
+          },
+          {
+            "id": "auth",
+            "text": "Explain where auth happens",
+            "optional": false,
+            "details": [],
+            "done": false
+          },
+          {
+            "id": "rate-limiting",
+            "text": "Mention rate limiting",
+            "optional": true,
+            "details": [],
+            "done": false
+          }
+        ]
+      },
+      { "id": "demo", "title": "Live demo", "items": [] },
+      { "id": "qa", "title": "Q&A", "items": [] }
+    ],
+    "currentIndex": 2
+  },
+  "settings": {
+    "enabled": false,
+    "style": "frosted",
+    "opacity": 72,
+    "corner": "bl",
+    "accent": "#FFD25A",
+    "compact": false,
+    "display": "primary"
+  },
+  "revision": 0
+}

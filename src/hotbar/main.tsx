@@ -7,6 +7,11 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 import { commands } from "../shared/ipc";
+import {
+  connectAgendaState,
+  runAgendaCommand,
+  useAgendaStore,
+} from "../shared/agenda-store";
 import { connectDrawingState, runCommand, useAppStore } from "../shared/store";
 import { ColorPicker } from "./ColorPicker";
 import type { Features, Tool } from "../shared/types";
@@ -30,7 +35,13 @@ const TOOLS: { tool: Tool; label: string; icon?: IconName }[] = [
 ];
 
 function Hotbar() {
-  const { drawing, ready, error } = useAppStore();
+  const { drawing, ready, error: drawingError } = useAppStore();
+  const {
+    state: agenda,
+    ready: agendaReady,
+    error: agendaError,
+  } = useAgendaStore();
+  const error = drawingError ?? agendaError;
   const [features, setFeatures] = useState<Features>({
     nativeEyedropper: false,
     webEyedropper: false,
@@ -41,6 +52,7 @@ function Hotbar() {
   const pendingColor = useRef<string | null>(null);
   const sendingColor = useRef(false);
   useEffect(connectDrawingState, []);
+  useEffect(connectAgendaState, []);
   useEffect(() => {
     let disposed = false;
     void commands
@@ -178,19 +190,17 @@ function Hotbar() {
           ))}
         </div>
         <div className="divider" />
-        <span
-          title="Waypoint sticky — coming soon"
-          className="disabled-control"
+        <button
+          className="sticky-button"
+          aria-label="Waypoint sticky"
+          aria-pressed={agenda?.settings.enabled ?? false}
+          title="Toggle agenda sticky (Ctrl+Option+S)"
+          disabled={!agendaReady || busy}
+          onClick={() => void runAgendaCommand(commands.toggleSticky)}
         >
-          <button
-            className="sticky-button"
-            aria-label="Waypoint sticky"
-            disabled
-          >
-            <Icon name="note" />
-            Sticky
-          </button>
-        </span>
+          <Icon name="note" />
+          Sticky
+        </button>
         <button
           className={`icon-button ${drawing.armed && drawing.tool === "eraser" ? "active" : ""}`}
           aria-label="Eraser"
@@ -232,7 +242,10 @@ function Hotbar() {
           {error}
           <button
             aria-label="Dismiss error"
-            onClick={() => useAppStore.setState({ error: null })}
+            onClick={() => {
+              useAppStore.setState({ error: null });
+              useAgendaStore.setState({ error: null });
+            }}
           >
             <Icon name="close" />
           </button>

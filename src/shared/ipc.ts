@@ -1,6 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { DrawingState, Features, Tool } from "./types";
+import type {
+  AgendaDirection,
+  AgendaState,
+  DrawingState,
+  Features,
+  Tool,
+} from "./types";
 
 export interface Events {
   "tool:changed": DrawingState;
@@ -9,6 +15,9 @@ export interface Events {
   "annotations:undo": null;
   "annotations:redo": null;
   "text:commit": null;
+  "agenda:changed": number;
+  "sticky:toggle": boolean;
+  "setup:requested": null;
 }
 
 export function on<K extends keyof Events>(
@@ -19,6 +28,13 @@ export function on<K extends keyof Events>(
 }
 
 export const commands = {
+  getAgendaState: () => invoke<AgendaState>("get_agenda_state"),
+  toggleSticky: () => invoke<AgendaState>("toggle_sticky"),
+  navigateAgenda: (direction: AgendaDirection) =>
+    invoke<AgendaState>("navigate_agenda", { direction }),
+  setAgendaItemDone: (sectionId: string, itemId: string, done: boolean) =>
+    invoke<AgendaState>("set_agenda_item_done", { sectionId, itemId, done }),
+  resizeSticky: (height: number) => invoke<number>("resize_sticky", { height }),
   getDrawingState: () => invoke<DrawingState>("get_drawing_state"),
   selectTool: (tool: Tool) => invoke<void>("select_tool", { tool }),
   beginTextEdit: () => invoke<void>("begin_text_edit"),

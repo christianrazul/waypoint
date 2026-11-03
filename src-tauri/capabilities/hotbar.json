@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "hotbar",
-  "description": "Hotbar: drawing controls, color picker, and grip dragging. Persistence remains native.",
+  "description": "Hotbar: drawing controls, sticky toggle, picker, and grip dragging. Persistence remains native.",
   "windows": [
     "hotbar"
   ],
@@ -22,6 +22,8 @@
     "allow-get-features",
     "allow-begin-sampling",
     "allow-end-sampling",
-    "allow-sample-color"
+    "allow-sample-color",
+    "allow-get-agenda-state",
+    "allow-toggle-sticky"
   ]
 }

@@ -45,3 +45,37 @@ export interface Features {
   nativeEyedropper: boolean;
   webEyedropper: boolean;
 }
+
+export interface AgendaItem {
+  id: string;
+  text: string;
+  optional: boolean;
+  details: string[];
+  done: boolean;
+}
+export interface Section {
+  id: string;
+  title: string;
+  items: AgendaItem[];
+}
+export interface Agenda {
+  id: string;
+  name: string;
+  sections: Section[];
+  currentIndex: number;
+}
+export interface StickySettings {
+  enabled: boolean;
+  style: "frosted" | "clear" | "paper";
+  opacity: number;
+  corner: "tl" | "tr" | "bl" | "br";
+  accent: string;
+  compact: boolean;
+  display: "primary" | "cursor";
+}
+export interface AgendaState {
+  agenda: Agenda;
+  settings: StickySettings;
+  revision: number;
+}
+export type AgendaDirection = "previous" | "next";

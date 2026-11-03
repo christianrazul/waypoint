@@ -1,5 +1,6 @@
-use crate::{platform, shortcuts, AppState, Tool};
+use crate::{agenda, platform, shortcuts, AppState, Tool};
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, Monitor, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
@@ -8,7 +9,8 @@ use tauri_plugin_store::StoreExt;
 
 pub const OVERLAY: &str = "overlay";
 pub const HOTBAR: &str = "hotbar";
-pub const FLOATING: &[&str] = &[HOTBAR];
+pub const STICKY: &str = "sticky";
+pub const FLOATING: &[&str] = &[HOTBAR, STICKY];
 const WIDTH: f64 = if cfg!(all(target_os = "macos", not(feature = "native-eyedropper"))) {
     794.0
 } else {
@@ -17,7 +19,13 @@ const WIDTH: f64 = if cfg!(all(target_os = "macos", not(feature = "native-eyedro
 const HEIGHT: f64 = 112.0;
 const PICKER_HEIGHT: f64 = 384.0;
 const MARGIN: f64 = 24.0;
-const SETTINGS: &str = "settings.json";
+const STICKY_WIDTH: f64 = 460.0;
+const STICKY_MARGIN: f64 = 48.0;
+
+#[derive(Default)]
+pub struct StickyLayout {
+    height: Mutex<Option<f64>>,
+}
 
 #[derive(Serialize, Deserialize)]
 struct Position {
@@ -89,7 +97,7 @@ pub fn create_hotbar(app: &AppHandle) -> Result<WebviewWindow, Box<dyn std::erro
     let monitor = app.primary_monitor()?.ok_or(tauri::Error::WindowNotFound)?;
     let (x, y, width, height) = frame(&monitor);
     let store = app
-        .store_builder(SETTINGS)
+        .store_builder(agenda::SETTINGS_FILE)
         .auto_save(std::time::Duration::from_millis(300))
         .build()?;
     let saved = store
@@ -361,4 +369,142 @@ pub fn set_level(app: &AppHandle, level: platform::Level) -> tauri::Result<()> {
     platform::apply_level(app, &[OVERLAY], FLOATING, level);
     tray_sync(app);
     Ok(())
+}
+
+#[derive(Debug)]
+struct StickyFrame {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    content_height: f64,
+    max_content_height: f64,
+}
+
+fn sticky_frame(
+    monitor: (f64, f64, f64, f64),
+    corner: agenda::Corner,
+    content_height: f64,
+) -> StickyFrame {
+    let (x, y, width, height) = monitor;
+    let max_content_height = (height - 64.0 - STICKY_MARGIN * 2.0).max(1.0);
+    let content_height = content_height.clamp(1.0, max_content_height);
+    let right = matches!(corner, agenda::Corner::Tr | agenda::Corner::Br);
+    let bottom = matches!(corner, agenda::Corner::Bl | agenda::Corner::Br);
+    StickyFrame {
+        x: if right {
+            x + width - 40.0 - STICKY_WIDTH - STICKY_MARGIN
+        } else {
+            x + 40.0 - STICKY_MARGIN
+        },
+        y: if bottom {
+            y + height - 32.0 - content_height - STICKY_MARGIN
+        } else {
+            y + 32.0 - STICKY_MARGIN
+        },
+        width: STICKY_WIDTH + STICKY_MARGIN * 2.0,
+        height: content_height + STICKY_MARGIN * 2.0,
+        content_height,
+        max_content_height,
+    }
+}
+
+pub fn create_sticky(app: &AppHandle) -> tauri::Result<WebviewWindow> {
+    let monitor = app.primary_monitor()?.ok_or(tauri::Error::WindowNotFound)?;
+    let initial = sticky_frame(frame(&monitor), agenda::Corner::Bl, 320.0);
+    let level = *app.state::<AppState>().level.lock().unwrap();
+    let window = base_builder(app, STICKY, "sticky.html")
+        .position(initial.x, initial.y)
+        .inner_size(initial.width, initial.height)
+        .build()?;
+    platform::configure_floating(&window, level)?;
+    Ok(window)
+}
+
+pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
+    if !height.is_finite() || height < 1.0 {
+        return Err("Sticky content height must be positive and finite".into());
+    }
+    let state = agenda::get(app)?;
+    let window = app
+        .get_webview_window(STICKY)
+        .ok_or("The sticky window is unavailable")?;
+    let monitor = app
+        .primary_monitor()
+        .map_err(|error| error.to_string())?
+        .ok_or("Primary display is unavailable")?;
+    let bounds = sticky_frame(frame(&monitor), state.settings.corner, height.ceil());
+    window
+        .set_size(LogicalSize::new(bounds.width, bounds.height))
+        .map_err(|error| error.to_string())?;
+    window
+        .set_position(tauri::LogicalPosition::new(bounds.x, bounds.y))
+        .map_err(|error| error.to_string())?;
+    *app.state::<StickyLayout>()
+        .height
+        .lock()
+        .map_err(|_| "Sticky layout is unavailable")? = Some(bounds.content_height);
+    sync_sticky(app, &state)?;
+    Ok(bounds.max_content_height)
+}
+
+pub fn sync_sticky(app: &AppHandle, state: &agenda::AgendaState) -> Result<(), String> {
+    let window = app
+        .get_webview_window(STICKY)
+        .ok_or("The sticky window is unavailable")?;
+    let ready = app
+        .state::<StickyLayout>()
+        .height
+        .lock()
+        .map_err(|_| "Sticky layout is unavailable")?
+        .is_some();
+    if !state.settings.enabled {
+        window.hide().map_err(|error| error.to_string())
+    } else if ready {
+        platform::show_without_focus(&window).map_err(|error| error.to_string())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn resizing_keeps_the_visible_bottom_left_anchor_fixed() {
+        let short = sticky_frame((0.0, 0.0, 1440.0, 900.0), agenda::Corner::Bl, 150.0);
+        let tall = sticky_frame((0.0, 0.0, 1440.0, 900.0), agenda::Corner::Bl, 350.0);
+        assert_eq!(short.x + STICKY_MARGIN, 40.0);
+        assert_eq!(short.y + STICKY_MARGIN + short.content_height, 868.0);
+        assert_eq!(tall.y + STICKY_MARGIN + tall.content_height, 868.0);
+    }
+    #[test]
+    fn every_corner_accounts_for_display_origin_and_shadow_margin() {
+        let monitor = (-1440.0, 100.0, 1440.0, 900.0);
+        for corner in [
+            agenda::Corner::Tl,
+            agenda::Corner::Tr,
+            agenda::Corner::Bl,
+            agenda::Corner::Br,
+        ] {
+            let bounds = sticky_frame(monitor, corner, 200.0);
+            let right = matches!(corner, agenda::Corner::Tr | agenda::Corner::Br);
+            let bottom = matches!(corner, agenda::Corner::Bl | agenda::Corner::Br);
+            assert_eq!(
+                bounds.x + STICKY_MARGIN,
+                if right { -40.0 - STICKY_WIDTH } else { -1400.0 }
+            );
+            assert_eq!(
+                bounds.y + STICKY_MARGIN,
+                if bottom { 1000.0 - 32.0 - 200.0 } else { 132.0 }
+            );
+        }
+    }
+    #[test]
+    fn oversized_content_is_clamped_without_moving_the_bottom_anchor() {
+        let bounds = sticky_frame((0.0, 0.0, 1440.0, 900.0), agenda::Corner::Bl, 10000.0);
+        assert_eq!(bounds.content_height, bounds.max_content_height);
+        assert!(bounds.y >= 0.0);
+        assert_eq!(bounds.y + STICKY_MARGIN + bounds.content_height, 868.0);
+    }
 }

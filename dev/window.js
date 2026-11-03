@@ -9,6 +9,28 @@ window.addEventListener("keydown", (event) => bridge.key(event));
 mockIPC(
   (command, args) => {
     switch (command) {
+      case "get_agenda_state":
+        return structuredClone(bridge.agenda);
+      case "toggle_sticky":
+        return bridge.toggleSticky();
+      case "navigate_agenda":
+        return bridge.navigateAgenda(args.direction);
+      case "set_agenda_item_done": {
+        const next = structuredClone(bridge.agenda);
+        const section = next.agenda.sections.find(
+          (section) => section.id === args.sectionId,
+        );
+        const item = section?.items.find((item) => item.id === args.itemId);
+        if (!item) throw new Error("Unknown checklist item");
+        item.done = args.done;
+        bridge.setAgenda(next);
+        return structuredClone(bridge.agenda);
+      }
+      case "resize_sticky": {
+        const limit = window.parent.innerHeight - 160;
+        window.frameElement.style.height = `${Math.min(args.height, limit) + 96}px`;
+        return limit;
+      }
       case "get_drawing_state":
         return { ...bridge.state };
       case "get_features":
@@ -51,4 +73,5 @@ mockIPC(
 const view = new URLSearchParams(location.search).get("view");
 if (view === "overlay") await import("../src/overlay/main.tsx");
 else if (view === "hotbar") await import("../src/hotbar/main.tsx");
+else if (view === "sticky") await import("../src/sticky/main.tsx");
 else throw new Error("Unknown preview surface");
