@@ -11,6 +11,7 @@ pub struct Displays {
     selected: Mutex<Option<String>>,
     next: Mutex<u64>,
     pending: AtomicBool,
+    #[cfg(target_os = "macos")]
     sessions_pending: AtomicBool,
     pub sessions: Mutex<crate::sessions::Sessions>,
     pub text_owner: Mutex<Option<String>>,
@@ -130,6 +131,7 @@ pub fn request_refresh(app: &AppHandle) {
         eprintln!("[displays] {error}");
     }
 }
+#[cfg(target_os = "macos")]
 pub fn request_session_refresh(app: &AppHandle) {
     if app
         .state::<Displays>()
