@@ -10,11 +10,6 @@ pub struct SetupState {
 }
 
 pub fn create(app: &AppHandle) -> tauri::Result<()> {
-    let monitor = app.primary_monitor()?.ok_or(tauri::Error::WindowNotFound)?;
-    let scale = monitor.scale_factor();
-    let size = monitor.size().to_logical::<f64>(scale);
-    let origin = monitor.position().to_logical::<f64>(scale);
-    let height = (size.height - 64.0).clamp(200.0, 650.0);
     let window = WebviewWindowBuilder::new(app, SETUP, WebviewUrl::App("setup.html".into()))
         .title("Waypoint sticky setup")
         .disable_drag_drop_handler()
@@ -29,11 +24,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         .focused(false)
         .accept_first_mouse(true)
         .visible(false)
-        .position(
-            origin.x + (size.width - 440.0).max(0.0) - SHADOW_MARGIN,
-            origin.y + 32.0 - SHADOW_MARGIN,
-        )
-        .inner_size(400.0 + SHADOW_MARGIN * 2.0, height + SHADOW_MARGIN * 2.0)
+        .inner_size(400.0 + SHADOW_MARGIN * 2.0, 650.0 + SHADOW_MARGIN * 2.0)
         .build()?;
     platform::configure_setup(&window, *app.state::<AppState>().level.lock().unwrap())?;
     let handle = app.clone();
@@ -63,6 +54,9 @@ pub fn request_close(app: &AppHandle) {
 }
 
 pub fn open(app: &AppHandle) -> Result<(), String> {
+    if app.get_webview_window(SETUP).is_none() {
+        create(app).map_err(|e| e.to_string())?;
+    }
     if app.state::<AppState>().drawing.lock().unwrap().sampling {
         return Err("Finish color sampling before opening setup".into());
     }
@@ -73,18 +67,17 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
             false,
         );
     }
+    crate::displays::invoke_display(app)?;
+    place(app)?;
     windows::end_text_edit(app)?;
     let window = app
         .get_webview_window(SETUP)
         .ok_or("Setup is unavailable")?;
-    let overlay = app
-        .get_webview_window(windows::OVERLAY)
-        .ok_or("Annotation overlay is unavailable")?;
     shortcuts::set_annotation_shortcuts(app, false)?;
     let armed = app.state::<AppState>().drawing.lock().unwrap().armed;
-    if let Err(error) = overlay.set_ignore_cursor_events(true) {
+    if let Err(error) = crate::displays::pointer_mode(app, false) {
         let _ = shortcuts::set_annotation_shortcuts(app, armed);
-        return Err(error.to_string());
+        return Err(error);
     }
     app.state::<SetupState>().open.store(true, Ordering::SeqCst);
     if let Err(error) = platform::focus_setup(&window, true) {
@@ -96,7 +89,7 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
         if shortcuts::set_annotation_shortcuts(app, armed).is_err() {
             let _ = windows::set_click_through(app, true);
         } else {
-            let _ = overlay.set_ignore_cursor_events(!armed);
+            let _ = crate::displays::pointer_mode(app, armed);
         }
         return Err(error);
     }
@@ -111,6 +104,7 @@ pub fn close(app: &AppHandle) -> Result<(), String> {
     let window = app
         .get_webview_window(SETUP)
         .ok_or("Setup is unavailable")?;
+    let restore = shortcuts::record(app, false);
     let focus = platform::release_setup(&window);
     let hidden = window.hide().map_err(|e| e.to_string());
     let current = app.state::<AppState>().drawing.lock().unwrap().clone();
@@ -121,16 +115,28 @@ pub fn close(app: &AppHandle) -> Result<(), String> {
     if keys.is_err() {
         let _ = windows::set_click_through(app, true);
     }
-    let pointer = app
-        .get_webview_window(windows::OVERLAY)
-        .ok_or_else(|| "Annotation overlay is unavailable".to_owned())
-        .and_then(|window| {
-            window
-                .set_ignore_cursor_events(!current.armed || keys.is_err())
-                .map_err(|e| e.to_string())
-        });
+    let pointer = crate::displays::pointer_mode(app, current.armed && keys.is_ok());
     if pointer.is_err() {
         let _ = windows::set_click_through(app, true);
     }
-    focus.and(hidden).and(keys).and(pointer)
+    restore.and(focus).and(hidden).and(keys).and(pointer)
+}
+
+pub fn place(app: &AppHandle) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(SETUP) else {
+        return Ok(());
+    };
+    let monitor = crate::displays::selected(app)?;
+    let size = monitor.size().to_logical::<f64>(monitor.scale_factor());
+    let height = (size.height - 64.0).clamp(200.0, 650.0);
+    crate::displays::place(
+        &window,
+        &monitor,
+        (
+            (size.width - 440.0).max(0.0) - SHADOW_MARGIN,
+            32.0 - SHADOW_MARGIN,
+        ),
+        (400.0 + SHADOW_MARGIN * 2.0, height + SHADOW_MARGIN * 2.0),
+    )
+    .map_err(|e| e.to_string())
 }

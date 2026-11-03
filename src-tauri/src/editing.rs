@@ -51,6 +51,9 @@ pub enum AgendaEdit {
     Corner {
         corner: Corner,
     },
+    Display {
+        display: agenda::Display,
+    },
     Compact {
         compact: bool,
     },
@@ -206,6 +209,7 @@ impl AgendaState {
                 self.settings.opacity = opacity;
             }
             AgendaEdit::Corner { corner } => self.settings.corner = corner,
+            AgendaEdit::Display { display } => self.settings.display = display,
             AgendaEdit::Compact { compact } => self.settings.compact = compact,
         }
         self.agenda.current_index = current_id
@@ -229,6 +233,7 @@ pub fn apply(app: &AppHandle, edit: AgendaEdit) -> Result<AgendaState, String> {
     if modified {
         agenda::changed(app, &state)?;
     }
+    crate::displays::invoke_display(app)?;
     crate::windows::refresh_sticky(app)?;
     Ok(state)
 }

@@ -15,6 +15,9 @@
     "allow-get-agenda-state",
     "allow-edit-agenda",
     "allow-open-setup",
-    "allow-close-setup"
+    "allow-close-setup",
+    "allow-get-shortcuts",
+    "allow-set-shortcut",
+    "allow-record-shortcut"
   ]
 }

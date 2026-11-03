@@ -18,6 +18,7 @@
     "allow-resize-sticky",
     "allow-start-sticky-drag",
     "allow-open-setup",
-    "allow-request-setup-close"
+    "allow-request-setup-close",
+    "allow-get-shortcuts"
   ]
 }

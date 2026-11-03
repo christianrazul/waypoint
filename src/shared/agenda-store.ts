@@ -54,6 +54,8 @@ export function connectAgendaState(): () => void {
       }
       unlisteners.push(off);
     }
+    const offError = await on("app:error", (error) => useAgendaStore.getState().reportError(error));
+    if (disposed) { offError(); return; } unlisteners.push(offError);
     refresh();
   };
   void connect().catch((error) => {

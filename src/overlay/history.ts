@@ -2,8 +2,14 @@ import type { Annotation } from "../shared/types";
 
 type Entry = { index: number; object: Annotation };
 type Change = { added: Entry[]; removed: Entry[] };
+export interface HistorySnapshot { objects: Annotation[]; past: Change[]; future: Change[] }
 
 export class AnnotationHistory {
+  onChange: (() => void) | null = null;
+  snapshot(): HistorySnapshot { return { objects: [...this.objects], past: [...this.past], future: [...this.future] }; }
+  restore(snapshot: HistorySnapshot): void {
+    this.objects = snapshot.objects; this.past = snapshot.past; this.future = snapshot.future;
+  }
   private objects: Annotation[] = [];
   private past: Change[] = [];
   private future: Change[] = [];
@@ -41,6 +47,7 @@ export class AnnotationHistory {
     if (!change) return;
     this.apply({ added: change.removed, removed: change.added });
     this.future.push(change);
+    this.onChange?.();
   }
 
   redo(): void {
@@ -48,12 +55,14 @@ export class AnnotationHistory {
     if (!change) return;
     this.apply(change);
     this.past.push(change);
+    this.onChange?.();
   }
 
   private commit(change: Change): void {
     this.apply(change);
     this.past.push(change);
     this.future = [];
+    this.onChange?.();
   }
 
   private apply(change: Change): void {

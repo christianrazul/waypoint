@@ -242,6 +242,7 @@ pub(crate) fn changed(app: &AppHandle, state: &AgendaState) -> Result<(), String
 }
 
 pub fn toggle(app: &AppHandle) -> Result<AgendaState, String> {
+    crate::displays::invoke_display(app)?;
     crate::windows::end_text_edit(app)?;
     let manager = app
         .try_state::<AgendaManager>()
@@ -269,6 +270,7 @@ pub fn toggle(app: &AppHandle) -> Result<AgendaState, String> {
     Ok(state)
 }
 pub fn navigate(app: &AppHandle, direction: Direction) -> Result<AgendaState, String> {
+    crate::displays::invoke_display(app)?;
     crate::windows::end_text_edit(app)?;
     let manager = app
         .try_state::<AgendaManager>()
@@ -285,6 +287,7 @@ pub fn set_done(
     item_id: &str,
     done: bool,
 ) -> Result<AgendaState, String> {
+    crate::displays::invoke_display(app)?;
     crate::windows::end_text_edit(app)?;
     let manager = app
         .try_state::<AgendaManager>()

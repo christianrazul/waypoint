@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { createRoot } from "react-dom/client";
-import { commands } from "../shared/ipc";
+import { commands, on } from "../shared/ipc";
 import {
   connectAgendaState,
   runAgendaCommand,
@@ -67,6 +67,7 @@ function StickyWindow() {
       }
     };
     measureRef.current = measure;
+    const offDisplay = on("displays:changed", () => { lastHeight = -1; measure(); });
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     measure();
@@ -75,6 +76,7 @@ function StickyWindow() {
       disposed = true;
       measureRef.current = () => {};
       observer.disconnect();
+      void offDisplay.then((off) => off()).catch(() => {});
     };
   }, [Boolean(state)]);
   useLayoutEffect(() => {

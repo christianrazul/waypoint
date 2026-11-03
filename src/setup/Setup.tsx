@@ -1,3 +1,5 @@
+import { Shortcuts } from "./Shortcuts";
+import { useShortcuts, formatShortcut } from "../shared/shortcuts";
 import { useEffect, useRef, useState } from "react";
 import type { AgendaState, Section, StickySettings } from "../shared/types";
 import { DraftField } from "./DraftField";
@@ -158,6 +160,7 @@ export function Setup({
   error: string | null;
   onClose: () => void;
 }) {
+  const { snapshot: shortcuts } = useShortcuts();
   const [expanded, setExpanded] = useState<string | null>(null);
   const [dragged, setDragged] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -348,6 +351,9 @@ export function Setup({
           </div>
         </div>
         <Opacity settings={state.settings} />
+        <div className="setup-group"><h2>Display</h2><div className="position-options">
+          {([["primary", "Primary display"], ["cursor", "Display at cursor"]] as const).map(([display, label]) => <button key={display} aria-pressed={state.settings.display === display} onClick={() => void saveEdit({ type: "display", display })}>{label}</button>)}
+        </div><p className="field-hint">Cursor mode chooses a display when controls or a shortcut are invoked.</p></div>
         <div className="setup-group">
           <h2>Position</h2>
           <div className="position-options">
@@ -389,9 +395,10 @@ export function Setup({
             <small>Hide checklist items; keep progress and navigation.</small>
           </span>
         </label>
+        <Shortcuts />
         <footer className="setup-footer">
           <span>Next section</span>
-          <kbd>Ctrl+Option+Right</kbd>
+          <kbd>{formatShortcut(shortcuts.bindings.next)}</kbd>
         </footer>
       </section>
     </main>
