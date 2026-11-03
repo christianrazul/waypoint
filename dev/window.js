@@ -9,6 +9,41 @@ window.addEventListener("keydown", (event) => bridge.key(event));
 mockIPC(
   (command, args) => {
     switch (command) {
+      case "get_overlay_session":
+        return structuredClone(bridge.sessions.get(view) ?? null);
+      case "save_overlay_session":
+        bridge.sessions.set(view, structuredClone(args.snapshot));
+        break;
+      case "record_shortcut":
+        bridge.recording = args.active;
+        break;
+      case "get_shortcuts":
+        return structuredClone(bridge.shortcuts);
+      case "set_shortcut": {
+        const lower = args.binding.toLowerCase().replace("control", "ctrl");
+        if (
+          Object.entries(bridge.shortcuts.bindings).some(
+            ([action, key]) =>
+              action !== args.action &&
+              key.toLowerCase().replace("control", "ctrl") === lower,
+          )
+        )
+          throw new Error(
+            "That shortcut is already assigned to another Waypoint action",
+          );
+        if (!/(ctrl|alt|super)\+/.test(lower))
+          throw new Error(
+            "Include Ctrl, Option/Alt or Command/Meta in a shortcut",
+          );
+        bridge.shortcuts.bindings[args.action] = args.binding;
+        bridge.shortcuts.revision++;
+        localStorage.setItem(
+          "waypoint-preview-shortcuts",
+          JSON.stringify(bridge.shortcuts.bindings),
+        );
+        bridge.emit("shortcuts:changed", bridge.shortcuts);
+        return structuredClone(bridge.shortcuts);
+      }
       case "request_setup_close":
         if (bridge.setupOpen) bridge.emit("setup:closing");
         break;
@@ -68,7 +103,7 @@ mockIPC(
         break;
       case "clear_annotations":
         bridge.emit("text:commit");
-        bridge.emit("annotations:clear");
+        bridge.emit("annotations:clear", null, bridge.activeOverlay);
         break;
       case "close_hotbar":
         bridge.update({ armed: false, editing: false });
@@ -86,7 +121,7 @@ mockIPC(
   { shouldMockEvents: true },
 );
 const view = new URLSearchParams(location.search).get("view");
-if (view === "overlay") await import("../src/overlay/main.tsx");
+if (view.startsWith("overlay")) await import("../src/overlay/main.tsx");
 else if (view === "hotbar") await import("../src/hotbar/main.tsx");
 else if (view === "sticky") await import("../src/sticky/main.tsx");
 else if (view === "setup") await import("../src/setup/main.tsx");
@@ -142,3 +177,19 @@ function startStickyDrag() {
     target.addEventListener("mouseup", end);
   }
 }
+
+if (view.startsWith("overlay"))
+  window.addEventListener(
+    "pointerdown",
+    () => {
+      bridge.activeOverlay = view;
+    },
+    true,
+  );
+window.addEventListener("waypoint:frame", (event) => {
+  bridge.timings ??= [];
+  bridge.timings.push(event.detail);
+  const sorted = [...bridge.timings].sort((a, b) => a - b);
+  const report = `${sorted.length} frames · median ${sorted[Math.floor(sorted.length * 0.5)].toFixed(2)}ms · p95 ${sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))].toFixed(2)}ms`;
+  parent.document.getElementById("latency").textContent = report;
+});

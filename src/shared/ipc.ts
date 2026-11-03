@@ -36,11 +36,15 @@ export function on<K extends keyof Events>(
 }
 
 export const commands = {
-  recordShortcut: (active: boolean) => invoke<void>("record_shortcut", { active }),
+  recordShortcut: (active: boolean) =>
+    invoke<void>("record_shortcut", { active }),
   getShortcuts: () => invoke<ShortcutSnapshot>("get_shortcuts"),
-  setShortcut: (action: ShortcutAction, binding: string) => invoke<ShortcutSnapshot>("set_shortcut", { action, binding }),
-  getOverlaySession: () => invoke<HistorySnapshot | null>("get_overlay_session"),
-  saveOverlaySession: (snapshot: HistorySnapshot) => invoke<void>("save_overlay_session", { snapshot }),
+  setShortcut: (action: ShortcutAction, binding: string) =>
+    invoke<ShortcutSnapshot>("set_shortcut", { action, binding }),
+  getOverlaySession: () =>
+    invoke<HistorySnapshot | null>("get_overlay_session"),
+  saveOverlaySession: (snapshot: HistorySnapshot) =>
+    invoke<void>("save_overlay_session", { snapshot }),
   editAgenda: (edit: AgendaEdit) =>
     invoke<AgendaState>("edit_agenda", { edit }),
   openSetup: () => invoke<void>("open_setup"),

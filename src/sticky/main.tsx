@@ -67,7 +67,10 @@ function StickyWindow() {
       }
     };
     measureRef.current = measure;
-    const offDisplay = on("displays:changed", () => { lastHeight = -1; measure(); });
+    const offDisplay = on("displays:changed", () => {
+      lastHeight = -1;
+      measure();
+    });
     const observer = new ResizeObserver(measure);
     observer.observe(element);
     measure();

@@ -152,6 +152,17 @@ pub fn sync(app: &AppHandle) {
         return;
     };
     let state = app.state::<AppState>();
+    let bindings = crate::shortcuts::get(app).bindings;
+    if let Some(binding) = bindings.get(&crate::shortcuts::Action::ToggleDrawing) {
+        let _ = items
+            .click_through
+            .set_text(format!("Click-through ({binding})"));
+    }
+    if let Some(binding) = bindings.get(&crate::shortcuts::Action::ToggleSticky) {
+        let _ = items
+            .sticky
+            .set_text(format!("Waypoint sticky ({binding})"));
+    }
     if let Ok(agenda) = agenda::get(app) {
         let _ = items.sticky.set_checked(agenda.settings.enabled);
     }

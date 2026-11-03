@@ -2,13 +2,25 @@ import type { Annotation } from "../shared/types";
 
 type Entry = { index: number; object: Annotation };
 type Change = { added: Entry[]; removed: Entry[] };
-export interface HistorySnapshot { objects: Annotation[]; past: Change[]; future: Change[] }
+export interface HistorySnapshot {
+  objects: Annotation[];
+  past: Change[];
+  future: Change[];
+}
 
 export class AnnotationHistory {
   onChange: (() => void) | null = null;
-  snapshot(): HistorySnapshot { return { objects: [...this.objects], past: [...this.past], future: [...this.future] }; }
+  snapshot(): HistorySnapshot {
+    return {
+      objects: [...this.objects],
+      past: [...this.past],
+      future: [...this.future],
+    };
+  }
   restore(snapshot: HistorySnapshot): void {
-    this.objects = snapshot.objects; this.past = snapshot.past; this.future = snapshot.future;
+    this.objects = snapshot.objects;
+    this.past = snapshot.past;
+    this.future = snapshot.future;
   }
   private objects: Annotation[] = [];
   private past: Change[] = [];

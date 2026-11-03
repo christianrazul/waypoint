@@ -136,42 +136,31 @@ pub fn update(app: &AppHandle, action: Action, binding: String) -> Result<Snapsh
     if new == old && old_active {
         return Ok(current.clone());
     }
-    keys.register(new.as_str()).map_err(|e| {
-        format!("Cannot register {new}; it may be reserved or in use. Previous binding kept. {e}")
-    })?;
-    let rollback = || -> Result<(), String> {
-        keys.unregister(new.as_str()).map_err(|e| e.to_string())?;
-        if old_active && !keys.is_registered(old.as_str()) {
-            keys.register(old.as_str())
-                .map_err(|e| format!("Previous binding could not be restored: {e}"))?;
-        }
-        Ok(())
-    };
-    if old_active {
-        if let Err(error) = keys.unregister(old.as_str()) {
-            let recovery = rollback();
-            return Err(format!(
-                "Cannot replace previous shortcut: {error}. Recovery: {recovery:?}"
-            ));
-        }
-    }
     let store = app
         .store(agenda::SETTINGS_FILE)
         .map_err(|e| e.to_string())?;
     let previous = store.get(KEY);
-    store.set(KEY, serde_json::to_value(&next).map_err(|e| e.to_string())?);
-    if let Err(error) = store.save() {
-        match previous {
-            Some(value) => store.set(KEY, value),
-            None => {
-                store.delete(KEY);
+    let value = serde_json::to_value(&next).map_err(|e| e.to_string())?;
+    replace_binding(
+        &old,
+        &new,
+        old_active,
+        |binding| keys.register(binding).map_err(|e| e.to_string()),
+        |binding| keys.unregister(binding).map_err(|e| e.to_string()),
+        || {
+            store.set(KEY, value);
+            if let Err(error) = store.save() {
+                match previous {
+                    Some(value) => store.set(KEY, value),
+                    None => {
+                        store.delete(KEY);
+                    }
+                }
+                return Err(error.to_string());
             }
-        }
-        let recovery = rollback();
-        return Err(format!(
-            "Could not save shortcuts: {error}. Recovery: {recovery:?}"
-        ));
-    }
+            Ok(())
+        },
+    )?;
     current.bindings = next;
     let unavailable: Vec<_> = current
         .bindings
@@ -192,6 +181,35 @@ pub fn update(app: &AppHandle, action: Action, binding: String) -> Result<Snapsh
     crate::tray::sync(app);
     Ok(snapshot)
 }
+fn replace_binding(
+    old: &str,
+    new: &str,
+    old_active: bool,
+    mut register: impl FnMut(&str) -> Result<(), String>,
+    mut unregister: impl FnMut(&str) -> Result<(), String>,
+    persist: impl FnOnce() -> Result<(), String>,
+) -> Result<(), String> {
+    register(new).map_err(|error| {
+        format!(
+            "Cannot register {new}; it may be reserved or in use. Previous binding kept. {error}"
+        )
+    })?;
+    if old_active {
+        if let Err(error) = unregister(old) {
+            let recovery = unregister(new);
+            return Err(format!(
+                "Cannot replace previous shortcut: {error}. Recovery: {recovery:?}"
+            ));
+        }
+    }
+    if let Err(error) = persist() {
+        let remove_new = unregister(new);
+        let restore_old = if old_active { register(old) } else { Ok(()) };
+        return Err(format!("Could not save shortcuts: {error}. Remove new binding: {remove_new:?}. Restore previous binding: {restore_old:?}"));
+    }
+    Ok(())
+}
+
 pub fn set_annotation_shortcuts(app: &AppHandle, enabled: bool) -> Result<(), String> {
     let enabled = enabled && !crate::setup::is_open(app);
     let shortcuts = app.global_shortcut();
@@ -255,14 +273,20 @@ pub fn plugin() -> TauriPlugin<Wry> {
                 None if shortcut.key == tauri_plugin_global_shortcut::Code::Escape => {
                     windows::set_click_through(app, true)
                 }
-                None => displays::history_action(
-                    app,
-                    if shortcut.mods.contains(Modifiers::SHIFT) {
-                        "annotations:redo"
-                    } else {
-                        "annotations:undo"
-                    },
-                ),
+                None if DRAWING_SHORTCUTS[1..]
+                    .iter()
+                    .any(|binding| Shortcut::from_str(binding).unwrap().id() == shortcut.id()) =>
+                {
+                    displays::history_action(
+                        app,
+                        if shortcut.mods.contains(Modifiers::SHIFT) {
+                            "annotations:redo"
+                        } else {
+                            "annotations:undo"
+                        },
+                    )
+                }
+                None => Ok(()),
             };
             if let Err(error) = result {
                 eprintln!("[shortcut] {error}");
@@ -274,6 +298,51 @@ pub fn plugin() -> TauriPlugin<Wry> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn registration_conflict_never_releases_the_previous_binding_or_saves() {
+        let removed = std::cell::RefCell::new(Vec::new());
+        let saved = std::cell::Cell::new(false);
+        let result = replace_binding(
+            "old",
+            "new",
+            true,
+            |_| Err("OS conflict".into()),
+            |key| {
+                removed.borrow_mut().push(key.to_owned());
+                Ok(())
+            },
+            || {
+                saved.set(true);
+                Ok(())
+            },
+        );
+        assert!(result.unwrap_err().contains("Previous binding kept"));
+        assert!(removed.borrow().is_empty());
+        assert!(!saved.get());
+    }
+    #[test]
+    fn disk_failure_restores_previous_registration() {
+        let active = std::cell::RefCell::new(std::collections::HashSet::from(["old".to_owned()]));
+        let result = replace_binding(
+            "old",
+            "new",
+            true,
+            |key| {
+                active.borrow_mut().insert(key.into());
+                Ok(())
+            },
+            |key| {
+                active.borrow_mut().remove(key);
+                Ok(())
+            },
+            || Err("disk full".into()),
+        );
+        assert!(result.unwrap_err().contains("disk full"));
+        assert_eq!(
+            *active.borrow(),
+            std::collections::HashSet::from(["old".to_owned()])
+        );
+    }
     #[test]
     fn aliases_cannot_assign_the_same_key_twice() {
         let mut bindings = defaults();

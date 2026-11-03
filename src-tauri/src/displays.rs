@@ -56,6 +56,18 @@ pub fn overlays(app: &AppHandle) -> Vec<tauri::WebviewWindow> {
         .map(|(_, w)| w)
         .collect()
 }
+pub fn monitor_id(app: &AppHandle, monitor: &Monitor) -> String {
+    app.state::<Displays>()
+        .entries
+        .lock()
+        .unwrap()
+        .iter()
+        .find(|entry| {
+            entry.monitor.name() == monitor.name() && entry.monitor.position() == monitor.position()
+        })
+        .map(|entry| entry.id.clone())
+        .unwrap_or_else(|| identity(monitor))
+}
 pub fn selected(app: &AppHandle) -> Result<Monitor, String> {
     let state = app.state::<Displays>();
     let selected = state.selected.lock().unwrap().clone();

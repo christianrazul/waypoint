@@ -1,3 +1,4 @@
+import { DEFAULT_SHORTCUTS, captureShortcut } from "../src/shared/shortcuts";
 import { editPreviewAgenda } from "./agenda";
 import seed from "../src/shared/seed-agenda.json";
 const agendaKey = "waypoint-preview-agenda-v1";
@@ -10,6 +11,16 @@ try {
 
 const bridge = {
   setupOpen: false,
+  activeOverlay: "overlay",
+  sessions: new Map(),
+  recording: false,
+  shortcuts: {
+    bindings: JSON.parse(
+      localStorage.getItem("waypoint-preview-shortcuts"),
+    ) ?? { ...DEFAULT_SHORTCUTS },
+    error: null,
+    revision: 0,
+  },
   agenda: storedAgenda ?? structuredClone(seed),
   state: {
     tool: "pen",
@@ -19,8 +30,10 @@ const bridge = {
     color: "#F0509A",
     revision: 0,
   },
-  emit(event, payload = null) {
-    for (const frame of document.querySelectorAll("iframe"))
+  emit(event, payload = null, target = null) {
+    for (const frame of [...document.querySelectorAll("iframe")].filter(
+      (frame) => !target || frame.id === target,
+    ))
       frame.contentWindow.postMessage(
         { kind: "waypoint-preview", event, payload },
         location.origin,
@@ -96,17 +109,20 @@ const bridge = {
     return structuredClone(this.agenda);
   },
   key(event) {
-    if (event.ctrlKey && event.altKey) {
-      if (event.key.toLowerCase() === "s") {
-        event.preventDefault();
-        this.toggleSticky();
-        return;
-      }
-      if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
-        event.preventDefault();
-        this.navigateAgenda(event.key === "ArrowRight" ? "next" : "previous");
-        return;
-      }
+    if (this.recording) return;
+    const binding = captureShortcut(event);
+    const action = Object.entries(this.shortcuts.bindings).find(
+      ([, value]) => value.toLowerCase() === binding?.toLowerCase(),
+    )?.[0];
+    if (action) {
+      event.preventDefault();
+      if (action === "toggleSticky") this.toggleSticky();
+      if (action === "toggleDrawing") this.update({ armed: !this.state.armed });
+      if (action === "next" || action === "previous")
+        this.navigateAgenda(action);
+      if (action === "clear")
+        this.emit("annotations:clear", null, this.activeOverlay);
+      return;
     }
     if (this.setupOpen || !this.state.armed || this.state.editing) return;
     if (event.key === "Escape") {
@@ -117,7 +133,11 @@ const bridge = {
       event.key.toLowerCase() === "z"
     ) {
       event.preventDefault();
-      this.emit(event.shiftKey ? "annotations:redo" : "annotations:undo");
+      this.emit(
+        event.shiftKey ? "annotations:redo" : "annotations:undo",
+        null,
+        this.activeOverlay,
+      );
     }
   },
 };
@@ -132,7 +152,7 @@ for (const view of ["overlay", "hotbar", "sticky", "setup"]) {
 for (const action of ["undo", "redo", "clear"])
   document.getElementById(action).onclick = () => {
     bridge.emit("text:commit");
-    bridge.emit(`annotations:${action}`);
+    bridge.emit(`annotations:${action}`, null, bridge.activeOverlay);
   };
 window.addEventListener("keydown", (event) => bridge.key(event));
 
@@ -149,3 +169,19 @@ window.addEventListener("mousedown", () => {
   if (bridge.setupOpen) bridge.emit("setup:closing");
 });
 window.addEventListener("resize", () => bridge.placeSticky());
+
+document.getElementById("second-display").onchange = (event) => {
+  const first = document.getElementById("overlay");
+  if (event.currentTarget.checked) {
+    first.style.width = "50vw";
+    const second = document.createElement("iframe");
+    second.id = "overlay-secondary";
+    second.title = "Waypoint second display";
+    second.src = "/dev/window.html?view=overlay-secondary";
+    document.body.insertBefore(second, document.getElementById("hotbar"));
+  } else {
+    document.getElementById("overlay-secondary")?.remove();
+    first.style.width = "100vw";
+    bridge.activeOverlay = "overlay";
+  }
+};

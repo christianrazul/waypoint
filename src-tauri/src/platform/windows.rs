@@ -94,9 +94,9 @@ unsafe extern "system" fn display_message(
 ) -> isize {
     use windows_sys::Win32::UI::{
         Shell::{DefSubclassProc, RemoveWindowSubclass},
-        WindowsAndMessaging::{WM_DISPLAYCHANGE, WM_DPICHANGED, WM_NCDESTROY},
+        WindowsAndMessaging::{WM_DISPLAYCHANGE, WM_DPICHANGED, WM_NCDESTROY, WM_SETTINGCHANGE},
     };
-    if message == WM_DISPLAYCHANGE || message == WM_DPICHANGED {
+    if message == WM_DISPLAYCHANGE || message == WM_DPICHANGED || message == WM_SETTINGCHANGE {
         crate::displays::request_refresh(&*(data as *const tauri::AppHandle));
     }
     if message == WM_NCDESTROY {

@@ -98,5 +98,10 @@ export type AgendaEdit =
   | { type: "display"; display: StickySettings["display"] }
   | { type: "compact"; compact: boolean };
 
-export type ShortcutAction = "next" | "previous" | "toggleDrawing" | "clear" | "toggleSticky";
-export interface ShortcutSnapshot { bindings: Record<ShortcutAction, string>; error: string | null; revision: number }
+export type ShortcutAction =
+  "next" | "previous" | "toggleDrawing" | "clear" | "toggleSticky";
+export interface ShortcutSnapshot {
+  bindings: Record<ShortcutAction, string>;
+  error: string | null;
+  revision: number;
+}

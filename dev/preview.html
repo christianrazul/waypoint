@@ -56,6 +56,22 @@
         height: 100vh;
         border: 0;
       }
+      #overlay-secondary {
+        position: absolute;
+        top: 0;
+        left: 50vw;
+        width: 50vw;
+        height: 100vh;
+        border: 0;
+        border-left: 1px dashed #97a6bb;
+      }
+      #latency {
+        position: absolute;
+        bottom: 56px;
+        right: 24px;
+        color: #637083;
+        font: 12px system-ui;
+      }
       #hotbar {
         position: absolute;
         top: 12px;
@@ -115,7 +131,9 @@
         <div class="box">Services</div>
       </div>
     </div>
+    <output id="latency"></output>
     <div class="controls">
+      <label><input type="checkbox" id="second-display" />Second display</label>
       <button id="undo">Undo</button><button id="redo">Redo</button
       ><button id="clear">Clear</button
       ><button id="open-setup">Sticky setup</button

@@ -56,7 +56,7 @@ fn base_builder<'a>(
         .visible(false)
 }
 
-fn monitor_key(monitor: &Monitor) -> String {
+fn legacy_monitor_key(monitor: &Monitor) -> String {
     format!(
         "hotbar:{}:{}x{}:{}:{}",
         monitor.name().map(String::as_str).unwrap_or("display"),
@@ -107,7 +107,8 @@ pub fn create_hotbar(app: &AppHandle) -> Result<WebviewWindow, Box<dyn std::erro
         .auto_save(std::time::Duration::from_millis(300))
         .build()?;
     let saved = store
-        .get(monitor_key(&monitor))
+        .get(monitor_key(app, &monitor))
+        .or_else(|| store.get(legacy_monitor_key(&monitor)))
         .and_then(|v| serde_json::from_value::<Position>(v).ok());
     let default = Position {
         x: x + width - 190.0 - (WIDTH - MARGIN),
@@ -144,7 +145,7 @@ pub fn create_hotbar(app: &AppHandle) -> Result<WebviewWindow, Box<dyn std::erro
                     (position.y - monitor.position().y) as f64 / monitor.scale_factor(),
                 );
                 store.set(
-                    monitor_key(&monitor),
+                    monitor_key(moved_window.app_handle(), &monitor),
                     serde_json::json!({"x": logical.x, "y": logical.y}),
                 );
             }
@@ -262,7 +263,17 @@ pub fn begin_text_edit(app: &AppHandle, label: &str) -> Result<(), String> {
     let state = app.state::<AppState>();
     let current = state.drawing.lock().unwrap().clone();
     if current.editing {
-        return Ok(());
+        if app
+            .state::<crate::displays::Displays>()
+            .text_owner
+            .lock()
+            .unwrap()
+            .as_deref()
+            == Some(label)
+        {
+            return Ok(());
+        }
+        end_text_edit(app)?;
     }
     if !current.armed || current.tool != Tool::Text || current.sampling {
         return Err("Select the text tool before typing".into());
@@ -306,6 +317,9 @@ pub fn end_text_edit(app: &AppHandle) -> Result<(), String> {
         .lock()
         .unwrap()
         .take();
+    if let Some(label) = &owner {
+        let _ = app.emit_to(label, "text:commit", ());
+    }
     let focus_result = if let Some(overlay) = owner.and_then(|label| app.get_webview_window(&label))
     {
         platform::end_text_edit(&overlay)
@@ -482,9 +496,18 @@ pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
         .store(agenda::SETTINGS_FILE)
         .map_err(|e| e.to_string())?;
     if let Some(offset) = store
-        .get(sticky_position_key(&monitor))
+        .get(sticky_position_key(app, &monitor))
+        .or_else(|| {
+            store.get(legacy_monitor_key(&monitor).replacen("hotbar:", "sticky-position:", 1))
+        })
         .and_then(|v| serde_json::from_value::<Position>(v).ok())
     {
+        if !store.has(sticky_position_key(app, &monitor)) {
+            store.set(
+                sticky_position_key(app, &monitor),
+                serde_json::to_value(&offset).map_err(|e| e.to_string())?,
+            );
+        }
         apply_custom_offset(&mut bounds, frame(&monitor), state.settings.corner, offset);
     }
     crate::displays::place(
@@ -497,13 +520,17 @@ pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
     *app.state::<StickyLayout>()
         .height
         .lock()
-        .map_err(|_| "Sticky layout is unavailable")? = Some(height);
+        .map_err(|_| "Sticky layout is unavailable")? = Some(bounds.content_height);
     sync_sticky(app, &state)?;
     Ok(bounds.max_content_height)
 }
 
-fn sticky_position_key(monitor: &Monitor) -> String {
-    monitor_key(monitor).replacen("hotbar:", "sticky-position:", 1)
+fn monitor_key(app: &AppHandle, monitor: &Monitor) -> String {
+    format!("hotbar:v2:{}", crate::displays::monitor_id(app, monitor))
+}
+
+fn sticky_position_key(app: &AppHandle, monitor: &Monitor) -> String {
+    monitor_key(app, monitor).replacen("hotbar:", "sticky-position:", 1)
 }
 
 fn apply_custom_offset(
@@ -570,7 +597,7 @@ fn remember_sticky_position(
     app.store(agenda::SETTINGS_FILE)
         .map_err(|e| e.to_string())?
         .set(
-            sticky_position_key(&monitor),
+            sticky_position_key(app, &monitor),
             serde_json::to_value(offset).map_err(|e| e.to_string())?,
         );
     Ok(())
@@ -600,7 +627,8 @@ pub fn reset_sticky_position(app: &AppHandle) -> Result<(), String> {
     let store = app
         .store(agenda::SETTINGS_FILE)
         .map_err(|e| e.to_string())?;
-    store.delete(sticky_position_key(&monitor));
+    store.set(sticky_position_key(app, &monitor), serde_json::Value::Null);
+    store.delete(legacy_monitor_key(&monitor).replacen("hotbar:", "sticky-position:", 1));
     store.save().map_err(|e| e.to_string())
 }
 
@@ -715,7 +743,8 @@ pub fn place_hotbar(app: &AppHandle) -> Result<(), String> {
         .store(agenda::SETTINGS_FILE)
         .map_err(|e| e.to_string())?;
     let mut saved = store
-        .get(monitor_key(&monitor))
+        .get(monitor_key(app, &monitor))
+        .or_else(|| store.get(legacy_monitor_key(&monitor)))
         .and_then(|v| serde_json::from_value::<Position>(v).ok())
         .unwrap_or(Position {
             x: width - 190.0 - (WIDTH - MARGIN),
@@ -734,6 +763,10 @@ pub fn place_hotbar(app: &AppHandle) -> Result<(), String> {
     let local = (
         saved.x.clamp(0.0, (width - WIDTH).max(0.0)),
         saved.y.clamp(0.0, (height - size.height).max(0.0)),
+    );
+    store.set(
+        monitor_key(app, &monitor),
+        serde_json::json!({"x": local.0, "y": local.1}),
     );
     app.state::<crate::displays::Displays>()
         .placing

@@ -351,9 +351,29 @@ export function Setup({
           </div>
         </div>
         <Opacity settings={state.settings} />
-        <div className="setup-group"><h2>Display</h2><div className="position-options">
-          {([["primary", "Primary display"], ["cursor", "Display at cursor"]] as const).map(([display, label]) => <button key={display} aria-pressed={state.settings.display === display} onClick={() => void saveEdit({ type: "display", display })}>{label}</button>)}
-        </div><p className="field-hint">Cursor mode chooses a display when controls or a shortcut are invoked.</p></div>
+        <div className="setup-group">
+          <h2>Display</h2>
+          <div className="position-options">
+            {(
+              [
+                ["primary", "Primary display"],
+                ["cursor", "Display at cursor"],
+              ] as const
+            ).map(([display, label]) => (
+              <button
+                key={display}
+                aria-pressed={state.settings.display === display}
+                onClick={() => void saveEdit({ type: "display", display })}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="field-hint">
+            Cursor mode chooses a display when controls or a shortcut are
+            invoked.
+          </p>
+        </div>
         <div className="setup-group">
           <h2>Position</h2>
           <div className="position-options">

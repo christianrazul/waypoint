@@ -25,6 +25,12 @@ type Gesture =
   | { pointerId: number; type: "eraser"; last: Position; erased: Set<string> };
 
 export class DrawingController {
+  onInputFrame: ((milliseconds: number) => void) | null = null;
+  private inputTime: number | null = null;
+  private markInput(event: PointerEvent): void {
+    if (this.onInputFrame && this.inputTime === null)
+      this.inputTime = event.timeStamp || performance.now();
+  }
   readonly history = new AnnotationHistory();
   private renderer = new AnnotationRenderer();
   private outlines = new WeakMap<Annotation, Position[]>();
@@ -82,6 +88,7 @@ export class DrawingController {
       this.drawing.sampling
     )
       return;
+    this.markInput(event);
     event.preventDefault();
     if (this.editor) {
       this.commitText();
@@ -136,6 +143,7 @@ export class DrawingController {
   pointerMove = (event: PointerEvent): void => {
     const gesture = this.gesture;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
+    this.markInput(event);
     const coalesced = event.getCoalescedEvents?.();
     for (const sample of coalesced?.length ? coalesced : [event]) {
       const position: Position = [sample.clientX, sample.clientY];
@@ -304,6 +312,10 @@ export class DrawingController {
     }
     if (this.gesture && this.gesture.type !== "eraser")
       this.renderer.draw(this.ctx, this.gesture.object, false);
+    if (this.inputTime !== null) {
+      this.onInputFrame?.(performance.now() - this.inputTime);
+      this.inputTime = null;
+    }
   };
 
   dispose(): void {
