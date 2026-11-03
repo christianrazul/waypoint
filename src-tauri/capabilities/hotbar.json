@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "hotbar",
+  "description": "Hotbar: drawing controls, color picker, and grip dragging. Persistence remains native.",
+  "windows": ["hotbar"],
+  "platforms": ["macOS", "windows"],
+  "permissions": [
+    "core:event:allow-listen", "core:event:allow-unlisten", "core:window:allow-start-dragging",
+    "allow-get-drawing-state", "allow-toggle-pen", "allow-set-color",
+    "allow-clear-annotations", "allow-close-hotbar", "allow-set-picker-open"
+  ]
+}

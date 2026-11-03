@@ -1,20 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { DrawingState } from "./types";
 
-export type Level = "status" | "popUpMenu" | "screenSaver" | "shielding";
-
-export interface SpikeState {
-  appName: string;
-  clickThrough: boolean;
-  level: Level;
-  frontmostApp: string | null;
-}
-
-/** Typed event map. Every cross-window event goes through here. */
 export interface Events {
-  "overlay:armed": boolean;
+  "tool:changed": DrawingState;
+  "color:changed": DrawingState;
   "annotations:clear": null;
-  "spike:level": Level;
 }
 
 export function on<K extends keyof Events>(
@@ -25,7 +16,10 @@ export function on<K extends keyof Events>(
 }
 
 export const commands = {
-  getSpikeState: () => invoke<SpikeState>("get_spike_state"),
-  setClickThrough: (enabled: boolean) => invoke<void>("set_click_through", { enabled }),
-  spikePing: (count: number) => invoke<void>("spike_ping", { count }),
+  getDrawingState: () => invoke<DrawingState>("get_drawing_state"),
+  togglePen: () => invoke<void>("toggle_pen"),
+  setColor: (color: string) => invoke<void>("set_color", { color }),
+  clearAnnotations: () => invoke<void>("clear_annotations"),
+  closeHotbar: () => invoke<void>("close_hotbar"),
+  setPickerOpen: (open: boolean) => invoke<void>("set_picker_open", { open }),
 };

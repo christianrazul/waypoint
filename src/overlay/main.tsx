@@ -1,115 +1,158 @@
-import { StrictMode, useEffect, useRef, useState } from "react";
+import { StrictMode, useEffect, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { on } from "../shared/ipc";
+import { connectDrawingState, useAppStore } from "../shared/store";
+import type { PenStroke, Point } from "../shared/types";
+import { strokePath } from "./strokes";
 import "../shared/tokens.css";
-
-// M0 spike: proves the overlay can capture the pointer while armed and that strokes survive
-// pass-through. Plain polylines; perfect-freehand and vector objects arrive in M1/M2.
-
-type Point = [number, number];
 
 function Overlay() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const strokes = useRef<Point[][]>([]);
-  const frame = useRef<number | null>(null);
-  const [armed, setArmed] = useState(false);
-  const [events, setEvents] = useState(0);
-
-  const requestDraw = () => {
-    if (frame.current !== null) return;
-    frame.current = requestAnimationFrame(() => {
-      frame.current = null;
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext("2d");
-      if (!canvas || !ctx) return;
-      const dpr = window.devicePixelRatio;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.lineWidth = 5;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.strokeStyle = "#F0509A";
-      for (const stroke of strokes.current) {
-        ctx.beginPath();
-        stroke.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
-        ctx.stroke();
-      }
-    });
-  };
+  const drawing = useAppStore((state) => state.drawing);
 
   useEffect(() => {
-    const resize = () => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
+    const disconnect = connectDrawingState();
+    const canvas = canvasRef.current!;
+    const ctx = canvas.getContext("2d")!;
+    const strokes: { stroke: PenStroke; path: Path2D }[] = [];
+    let active: { stroke: PenStroke; pointerId: number } | null = null;
+    let frame: number | null = null;
+    let disposed = false;
+
+    const draw = () => {
+      frame = null;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       const dpr = window.devicePixelRatio;
-      canvas.width = Math.round(window.innerWidth * dpr);
-      canvas.height = Math.round(window.innerHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      for (const { stroke, path } of strokes) {
+        ctx.fillStyle = stroke.color;
+        ctx.fill(path);
+      }
+      if (active) {
+        ctx.fillStyle = active.stroke.color;
+        ctx.fill(strokePath(active.stroke, false));
+      }
+    };
+    const requestDraw = () => {
+      if (frame === null) frame = requestAnimationFrame(draw);
+    };
+    const finish = () => {
+      if (!active) return;
+      const { stroke, pointerId } = active;
+      active = null;
+      strokes.push({ stroke, path: strokePath(stroke, true) });
+      if (canvas.hasPointerCapture(pointerId))
+        canvas.releasePointerCapture(pointerId);
       requestDraw();
     };
-    resize();
-    window.addEventListener("resize", resize);
-    const unlisteners = [
-      on("overlay:armed", setArmed),
-      on("annotations:clear", () => {
-        strokes.current = [];
-        requestDraw();
-      }),
+    const resize = () => {
+      canvas.width = Math.round(window.innerWidth * window.devicePixelRatio);
+      canvas.height = Math.round(window.innerHeight * window.devicePixelRatio);
+      requestDraw();
+    };
+    const point = (event: PointerEvent): Point => [
+      event.clientX,
+      event.clientY,
+      event.pressure,
     ];
+    const down = (event: PointerEvent) => {
+      const { drawing, ready } = useAppStore.getState();
+      if (
+        !ready ||
+        !drawing.armed ||
+        event.button !== 0 ||
+        !event.isPrimary ||
+        active
+      )
+        return;
+      event.preventDefault();
+      canvas.setPointerCapture(event.pointerId);
+      active = {
+        pointerId: event.pointerId,
+        stroke: {
+          id: crypto.randomUUID(),
+          type: "pen",
+          points: [point(event)],
+          color: drawing.color,
+          size: 5,
+          simulatePressure: event.pointerType !== "pen",
+        },
+      };
+      requestDraw();
+    };
+    const sample = (event: PointerEvent) => {
+      if (!active || event.pointerId !== active.pointerId) return;
+      const coalesced = event.getCoalescedEvents?.();
+      for (const sample of coalesced?.length ? coalesced : [event])
+        active.stroke.points.push(point(sample));
+      requestDraw();
+    };
+    const up = (event: PointerEvent) => {
+      if (event.pointerId !== active?.pointerId) return;
+      sample(event);
+      finish();
+    };
+    const cancel = (event: PointerEvent) => {
+      if (event.pointerId === active?.pointerId) finish();
+    };
+    const offStore = useAppStore.subscribe((state) => {
+      if (!state.drawing.armed) finish();
+    });
+    const offClear = on("annotations:clear", () => {
+      if (disposed) return;
+      if (active && canvas.hasPointerCapture(active.pointerId))
+        canvas.releasePointerCapture(active.pointerId);
+      active = null;
+      strokes.length = 0;
+      requestDraw();
+    });
+    void offClear.catch(useAppStore.getState().reportError);
+    canvas.addEventListener("pointerdown", down);
+    canvas.addEventListener("pointermove", sample);
+    canvas.addEventListener("pointerup", up);
+    canvas.addEventListener("pointercancel", cancel);
+    canvas.addEventListener("lostpointercapture", cancel);
+    window.addEventListener("blur", finish);
+    window.addEventListener("resize", resize);
+    let dprQuery: MediaQueryList;
+    const watchDpr = () => {
+      dprQuery?.removeEventListener("change", watchDpr);
+      resize();
+      dprQuery = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      dprQuery.addEventListener("change", watchDpr);
+    };
+    watchDpr();
     return () => {
+      disposed = true;
+      disconnect();
+      offStore();
+      void offClear.then((off) => off()).catch(() => {});
+      if (frame !== null) cancelAnimationFrame(frame);
+      canvas.removeEventListener("pointerdown", down);
+      canvas.removeEventListener("pointermove", sample);
+      canvas.removeEventListener("pointerup", up);
+      canvas.removeEventListener("pointercancel", cancel);
+      canvas.removeEventListener("lostpointercapture", cancel);
+      window.removeEventListener("blur", finish);
       window.removeEventListener("resize", resize);
-      unlisteners.forEach((p) => p.then((off) => off()));
+      dprQuery.removeEventListener("change", watchDpr);
     };
   }, []);
 
-  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
-    strokes.current.push([[e.clientX, e.clientY]]);
-    setEvents((n) => n + 1);
-    requestDraw();
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
-    const stroke = strokes.current[strokes.current.length - 1];
-    const samples = e.nativeEvent.getCoalescedEvents?.() ?? [e.nativeEvent];
-    for (const s of samples) stroke.push([s.clientX, s.clientY]);
-    requestDraw();
-  };
-
   return (
-    <>
-      <canvas
-        ref={canvasRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        style={{
-          position: "fixed",
-          inset: 0,
-          width: "100vw",
-          height: "100vh",
-          cursor: armed ? "crosshair" : "default",
-          outline: armed ? "3px solid rgba(240,80,154,0.6)" : "none",
-          outlineOffset: -3,
-        }}
-      />
-      {armed && (
-        <div
-          style={{
-            position: "fixed",
-            left: 16,
-            bottom: 16,
-            padding: "6px 10px",
-            borderRadius: 8,
-            background: "rgba(14,16,20,0.85)",
-            color: "#fff",
-            font: "600 12px var(--wp-font)",
-            pointerEvents: "none",
-          }}
-        >
-          Overlay armed: drawing captures the mouse ({events} strokes). ⌃⌥D for pass-through.
-        </div>
-      )}
-    </>
+    <canvas
+      ref={canvasRef}
+      aria-label="Screen annotations"
+      style={{
+        position: "fixed",
+        inset: 0,
+        width: "100vw",
+        height: "100vh",
+        touchAction: "none",
+        cursor: drawing.armed ? "crosshair" : "default",
+      }}
+    />
   );
 }
 

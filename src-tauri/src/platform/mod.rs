@@ -32,7 +32,12 @@ pub enum Level {
 }
 
 impl Level {
-    pub const ALL: [Level; 4] = [Level::Status, Level::PopUpMenu, Level::ScreenSaver, Level::Shielding];
+    pub const ALL: [Level; 4] = [
+        Level::Status,
+        Level::PopUpMenu,
+        Level::ScreenSaver,
+        Level::Shielding,
+    ];
 
     pub fn id(self) -> &'static str {
         match self {
@@ -72,17 +77,17 @@ pub fn configure_floating(window: &tauri::WebviewWindow, level: Level) -> tauri:
     imp::configure_floating(window, level)
 }
 
-/// Re-applies the level to existing windows (spike only: lets you compare levels live).
-pub fn apply_level(app: &tauri::AppHandle, overlay_labels: &[&str], floating_labels: &[&str], level: Level) {
+/// Re-applies the level to existing windows (debug menu: lets you compare levels live).
+pub fn apply_level(
+    app: &tauri::AppHandle,
+    overlay_labels: &[&str],
+    floating_labels: &[&str],
+    level: Level,
+) {
     imp::apply_level(app, overlay_labels, floating_labels, level)
 }
 
 /// Shows a window without activating the app or stealing key focus.
 pub fn show_without_focus(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     imp::show_without_focus(window)
-}
-
-/// Localized name of the frontmost application, used to prove focus never moves to us.
-pub fn frontmost_app() -> Option<String> {
-    imp::frontmost_app()
 }

@@ -1,7 +1,6 @@
 //! macOS: windows become NSPanels with the non-activating style mask, so clicking them never
 //! activates Waypoint and the presenting app keeps keyboard focus.
 
-use objc2_app_kit::NSWorkspace;
 use tauri::{ActivationPolicy, Manager};
 use tauri_nspanel::{tauri_panel, CollectionBehavior, ManagerExt, StyleMask, WebviewWindowExt};
 
@@ -69,7 +68,12 @@ pub fn configure_floating(window: &tauri::WebviewWindow, level: Level) -> tauri:
     to_panel(window, raw_level(level) + 1)
 }
 
-pub fn apply_level(app: &tauri::AppHandle, overlay_labels: &[&str], floating_labels: &[&str], level: Level) {
+pub fn apply_level(
+    app: &tauri::AppHandle,
+    overlay_labels: &[&str],
+    floating_labels: &[&str],
+    level: Level,
+) {
     let base = raw_level(level);
     for (labels, value) in [(overlay_labels, base), (floating_labels, base + 1)] {
         for label in labels {
@@ -89,10 +93,4 @@ pub fn show_without_focus(window: &tauri::WebviewWindow) -> tauri::Result<()> {
         .map_err(|_| tauri::Error::WindowNotFound)?;
     panel.show();
     Ok(())
-}
-
-pub fn frontmost_app() -> Option<String> {
-    let workspace = NSWorkspace::sharedWorkspace();
-    let app = workspace.frontmostApplication()?;
-    app.localizedName().map(|name| name.to_string())
 }

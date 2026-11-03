@@ -1,10 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-// One HTML entry per Tauri webview. M1+ adds hotbar.html, sticky.html, setup.html.
+// Each native window has its own React entry.
 const entries = {
   overlay: "overlay.html",
-  spike: "spike.html",
+  hotbar: "hotbar.html",
 };
 
 export default defineConfig({

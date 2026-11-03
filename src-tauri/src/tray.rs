@@ -1,7 +1,4 @@
-//! Menu bar icon. Left click toggles the floating window (the test panel in M0, the hotbar
-//! from M1). Right click opens the menu.
-
-use std::sync::atomic::Ordering;
+//! Menu bar icon. Left click toggles the floating window (the hotbar). Right click opens the menu.
 
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -30,33 +27,65 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
         CLICK_THROUGH,
         "Click-through (⌃⌥D)",
         true,
-        state.click_through.load(Ordering::SeqCst),
+        !state.drawing.lock().unwrap().armed,
         None::<&str>,
     )?;
     let levels = Level::ALL
         .into_iter()
         .map(|level| {
-            CheckMenuItem::with_id(app, level.id(), level.label(), true, level == current_level, None::<&str>)
-                .map(|item| (level, item))
+            CheckMenuItem::with_id(
+                app,
+                level.id(),
+                level.label(),
+                true,
+                level == current_level,
+                None::<&str>,
+            )
+            .map(|item| (level, item))
         })
         .collect::<tauri::Result<Vec<_>>>()?;
-    let level_refs: Vec<&dyn tauri::menu::IsMenuItem<Wry>> =
-        levels.iter().map(|(_, item)| item as &dyn tauri::menu::IsMenuItem<Wry>).collect();
+    let level_refs: Vec<&dyn tauri::menu::IsMenuItem<Wry>> = levels
+        .iter()
+        .map(|(_, item)| item as &dyn tauri::menu::IsMenuItem<Wry>)
+        .collect();
     let level_menu = Submenu::with_items(app, "Window level", true, &level_refs)?;
 
     let menu = Menu::with_items(
         app,
         &[
-            &MenuItem::with_id(app, TOGGLE_PANEL, "Show/Hide test panel", true, None::<&str>)?,
+            &MenuItem::with_id(app, TOGGLE_PANEL, "Show/Hide hotbar", true, None::<&str>)?,
+            &MenuItem::with_id(
+                app,
+                "sticky_setup",
+                "Waypoint sticky setup (coming soon)",
+                false,
+                None::<&str>,
+            )?,
+            &MenuItem::with_id(
+                app,
+                "sticky_toggle",
+                "Toggle sticky (coming soon)",
+                false,
+                None::<&str>,
+            )?,
             &click_through,
             &level_menu,
             &MenuItem::with_id(app, CLEAR, "Clear annotations", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
-            &MenuItem::with_id(app, QUIT, format!("Quit {}", crate::APP_NAME), true, None::<&str>)?,
+            &MenuItem::with_id(
+                app,
+                QUIT,
+                format!("Quit {}", crate::APP_NAME),
+                true,
+                None::<&str>,
+            )?,
         ],
     )?;
 
-    app.manage(TrayItems { click_through, levels });
+    app.manage(TrayItems {
+        click_through,
+        levels,
+    });
 
     TrayIconBuilder::with_id("main")
         .icon(tauri::include_image!("icons/tray-template.png"))
@@ -71,21 +100,23 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
                 ..
             } = event
             {
-                let _ = windows::toggle_spike(tray.app_handle());
+                if let Err(err) = windows::toggle_hotbar(tray.app_handle()) {
+                    eprintln!("[tray] toggle hotbar: {err}");
+                }
             }
         })
         .on_menu_event(|app, event| {
             let id = event.id().as_ref();
             let result = match id {
-                TOGGLE_PANEL => windows::toggle_spike(app),
+                TOGGLE_PANEL => windows::toggle_hotbar(app),
                 CLICK_THROUGH => windows::toggle_click_through(app),
-                CLEAR => app.emit("annotations:clear", ()),
+                CLEAR => app.emit("annotations:clear", ()).map_err(|e| e.to_string()),
                 QUIT => {
                     app.exit(0);
                     Ok(())
                 }
                 other => match Level::from_id(other) {
-                    Some(level) => windows::set_level(app, level),
+                    Some(level) => windows::set_level(app, level).map_err(|e| e.to_string()),
                     None => Ok(()),
                 },
             };
@@ -94,6 +125,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             }
         })
         .build(app)?;
+    sync(app);
     Ok(())
 }
 
@@ -103,7 +135,23 @@ pub fn sync(app: &AppHandle) {
         return;
     };
     let state = app.state::<AppState>();
-    let _ = items.click_through.set_checked(state.click_through.load(Ordering::SeqCst));
+    let _ = items
+        .click_through
+        .set_checked(!state.drawing.lock().unwrap().armed);
+    if let Some(tray) = app.tray_by_id("main") {
+        let visible = app
+            .get_webview_window(windows::HOTBAR)
+            .and_then(|window| window.is_visible().ok())
+            .unwrap_or(false);
+        let icon = if visible {
+            tauri::include_image!("icons/tray-active-template.png")
+        } else {
+            tauri::include_image!("icons/tray-template.png")
+        };
+        if let Err(err) = tray.set_icon_with_as_template(Some(icon), true) {
+            eprintln!("[tray] active icon: {err}");
+        }
+    }
     let current = *state.level.lock().unwrap();
     for (level, item) in &items.levels {
         let _ = item.set_checked(*level == current);

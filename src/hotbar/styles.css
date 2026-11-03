@@ -1,0 +1,255 @@
+main {
+  padding: 24px;
+}
+button {
+  font: inherit;
+  color: var(--wp-icon-idle);
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+button:focus-visible {
+  outline: 2px solid var(--wp-accent);
+  outline-offset: 2px;
+}
+button:disabled {
+  cursor: default;
+}
+.hotbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: max-content;
+  padding: 8px 10px;
+  border: 1px solid var(--wp-bar-border);
+  border-radius: var(--wp-bar-radius);
+  background: var(--wp-bar-bg);
+  box-shadow: var(--wp-bar-shadow);
+}
+.button-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.icon-button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--wp-button-radius);
+  background: transparent;
+  flex-shrink: 0;
+}
+.icon-button svg {
+  width: 22px;
+  height: 22px;
+}
+.icon-button:hover:not(:disabled),
+.close-button:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+.icon-button.active,
+.icon-button.active:hover {
+  background: var(--active-fill);
+  color: #fff;
+}
+.disabled-control {
+  display: inline-flex;
+}
+.disabled-control .icon-button {
+  opacity: 0.45;
+}
+.grip {
+  width: 16px;
+  height: 32px;
+  display: grid;
+  grid-template-columns: repeat(2, 3px);
+  grid-template-rows: repeat(3, 3px);
+  justify-content: center;
+  align-content: center;
+  gap: 4px;
+  cursor: grab;
+  flex-shrink: 0;
+}
+.grip i {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #6b7280;
+}
+.grip:active {
+  cursor: grabbing;
+}
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--swatch);
+}
+.color-button[aria-pressed="true"] .swatch {
+  box-shadow:
+    0 0 0 2px #0e1014,
+    0 0 0 4px var(--swatch);
+}
+.wheel {
+  background: conic-gradient(#f44, #fd3, #4e6, #3cf, #46f, #c4f, #f44);
+}
+.divider {
+  width: 1px;
+  height: 24px;
+  margin: 0 4px;
+  background: var(--wp-divider);
+  flex-shrink: 0;
+}
+.text-tool {
+  font:
+    500 22px Georgia,
+    serif;
+}
+.sticky-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--wp-accent);
+  color: #111;
+  font: 600 13px var(--wp-font);
+}
+.sticky-button svg {
+  width: 18px;
+  height: 18px;
+}
+.sticky-button:disabled {
+  opacity: 0.65;
+}
+.clear {
+  color: #9ca3af;
+}
+.close-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--wp-close-bg);
+  flex-shrink: 0;
+}
+.close-button svg {
+  width: 16px;
+  height: 16px;
+}
+.color-picker {
+  box-sizing: border-box;
+  width: 260px;
+  margin: 10px 0 0 166px;
+  padding: 14px;
+  border: 1px solid var(--wp-bar-border);
+  border-radius: 14px;
+  background: #0e1014;
+  color: #f2f4f7;
+  box-shadow: var(--wp-bar-shadow);
+}
+.picker-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+.picker-heading button {
+  border-radius: 5px;
+  padding: 4px 8px;
+  font-size: 11px;
+  background: #262b33;
+}
+.saturation {
+  position: relative;
+  height: 112px;
+  border-radius: 6px;
+  touch-action: none;
+  background-image:
+    linear-gradient(to top, #000, transparent),
+    linear-gradient(to right, #fff, transparent);
+  cursor: crosshair;
+}
+.picker-cursor {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff;
+  box-shadow: 0 0 2px #000;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.hue {
+  position: relative;
+  height: 12px;
+  margin: 16px 0 12px;
+  border-radius: 6px;
+  background: linear-gradient(
+    to right,
+    #f00,
+    #ff0,
+    #0f0,
+    #0ff,
+    #00f,
+    #f0f,
+    #f00
+  );
+  touch-action: none;
+  cursor: crosshair;
+}
+.hue span {
+  position: absolute;
+  top: -3px;
+  width: 5px;
+  height: 14px;
+  border: 2px solid #fff;
+  border-radius: 4px;
+  box-shadow: 0 0 2px #000;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.color-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.color-value > span {
+  width: 16px;
+  height: 16px;
+  border: 1px solid #59616c;
+  border-radius: 4px;
+}
+.error {
+  position: fixed;
+  bottom: 0;
+  left: 24px;
+  right: 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  font-size: 11px;
+  color: #ffd25a;
+  background: #0e1014;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 6px;
+}
+.error button {
+  background: transparent;
+}
+.error svg {
+  width: 14px;
+  height: 14px;
+}

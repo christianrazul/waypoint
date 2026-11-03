@@ -1,4 +1,32 @@
-/* Design tokens. M1 fills in the full hotbar, sticky and setup values. */
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/inter-latin-700-normal.woff2") format("woff2");
+}
+
 :root {
   --wp-pink: #f0509a;
   --wp-blue: #4fa3f7;
@@ -7,14 +35,15 @@
 
   --wp-bar-bg: rgba(14, 16, 20, 0.94);
   --wp-bar-border: rgba(255, 255, 255, 0.08);
-  --wp-bar-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  /* Fits inside the hotbar window's 24px padding, or the transparent window clips it into a visible box */
+  --wp-bar-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
   --wp-bar-radius: 14px;
   --wp-button-radius: 10px;
   --wp-close-bg: #262b33;
   --wp-icon-idle: #d1d5db;
   --wp-divider: #333a45;
 
-  --wp-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --wp-font: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 html,
