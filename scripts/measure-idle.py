@@ -14,11 +14,13 @@ import time
 
 parser = argparse.ArgumentParser()
 parser.add_argument("pid", type=int)
-parser.add_argument("--seconds", type=int, default=10)
+parser.add_argument("--seconds", type=int, default=30)
+parser.add_argument("--warmup", type=int, default=15)
 parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--binary", type=Path)
+parser.add_argument("--settings", type=Path)
 args = parser.parse_args()
-if platform.system() != "Darwin" or args.seconds < 1:
+if platform.system() != "Darwin" or args.seconds < 1 or args.warmup < 0:
     parser.error("Use macOS and a positive sampling duration")
 responsible = ctypes.CDLL("/usr/lib/libSystem.B.dylib").responsibility_get_pid_responsible_for_pid
 responsible.argtypes = [ctypes.c_int]
@@ -43,14 +45,21 @@ def processes():
         raise RuntimeError("The app exited during measurement")
     return {pid: rows[pid] for pid in owned if pid in rows}
 
+time.sleep(args.warmup)
+app_age = subprocess.check_output(["ps", "-p", str(args.pid), "-o", "etime="], text=True).strip()
 samples = []
+deltas = {}
 previous = processes()
+settings_before = hashlib.sha256(args.settings.read_bytes()).hexdigest() if args.settings else None
 started = time.monotonic()
 cpu_seconds = 0.0
 for _ in range(args.seconds):
     time.sleep(1)
     current = processes()
-    cpu_seconds += sum(max(0, row["cpuSeconds"] - previous[pid]["cpuSeconds"]) for pid, row in current.items() if pid in previous)
+    for pid, row in current.items():
+        delta = max(0, row["cpuSeconds"] - previous[pid]["cpuSeconds"]) if pid in previous else 0
+        cpu_seconds += delta
+        deltas[pid] = deltas.get(pid, 0) + delta
     samples.append({"elapsedSeconds": round(time.monotonic() - started, 3), "rssBytes": sum(row["rssBytes"] for row in current.values()), "processCount": len(current)})
     previous = current
 elapsed = time.monotonic() - started
@@ -65,6 +74,9 @@ report = {
     "measuredAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     "macOS": platform.mac_ver()[0],
     "hardware": subprocess.check_output(["sysctl", "-n", "machdep.cpu.brand_string"], text=True).strip(),
+    "appAgeAtStart": app_age,
+    "warmupSeconds": args.warmup,
+    "processCpuSeconds": {str(pid): round(delta, 4) for pid, delta in deltas.items()},
     "durationSeconds": round(elapsed, 3),
     "cpuSeconds": round(cpu_seconds, 4),
     "averageCpuPercentOfOneCore": round(cpu_seconds / elapsed * 100, 3),
@@ -73,6 +85,8 @@ report = {
     "processes": footprint["processes"],
     "samples": samples,
 }
+if args.settings:
+    report["settingsStableDuringSample"] = settings_before == hashlib.sha256(args.settings.read_bytes()).hexdigest()
 if args.binary:
     report["binarySha256"] = hashlib.sha256(args.binary.read_bytes()).hexdigest()
 args.output.write_text(json.dumps(report, indent=2) + "\n")

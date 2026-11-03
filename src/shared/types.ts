@@ -39,6 +39,7 @@ export type Annotation = PenStroke | ShapeAnnotation | TextAnnotation;
 export interface Features {
   nativeEyedropper: boolean;
   webEyedropper: boolean;
+  annotationError?: string | null;
 }
 
 export interface AgendaItem {

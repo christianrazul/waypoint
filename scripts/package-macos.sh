@@ -7,6 +7,11 @@ if [[ "$(uname -s)" != Darwin ]]; then
   exit 1
 fi
 pnpm tauri build --bundles app
+waypoint_identity="${APPLE_SIGNING_IDENTITY:-$(node -p 'require("./src-tauri/tauri.conf.json").bundle.macOS.signingIdentity || "-"')}"
+if [[ "$waypoint_identity" == - ]]; then
+  codesign --force --sign - --options runtime --timestamp=none src-tauri/target/release/bundle/macos/Waypoint.app
+fi
+codesign --verify --deep --strict src-tauri/target/release/bundle/macos/Waypoint.app
 waypoint_version="$(node -p 'require("./package.json").version')"
 waypoint_arch="$(uname -m)"
 if [[ "$waypoint_arch" == arm64 ]]; then waypoint_arch=aarch64; fi

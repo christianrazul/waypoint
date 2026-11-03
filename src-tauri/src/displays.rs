@@ -1,10 +1,7 @@
 use crate::{agenda, platform, windows, AppState};
-use std::{
-    collections::HashMap,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex,
-    },
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
 };
 use tauri::{AppHandle, Emitter, Manager, Monitor};
 
@@ -14,7 +11,8 @@ pub struct Displays {
     selected: Mutex<Option<String>>,
     next: Mutex<u64>,
     pending: AtomicBool,
-    sessions: Mutex<HashMap<String, serde_json::Value>>,
+    sessions_pending: AtomicBool,
+    pub sessions: Mutex<crate::sessions::Sessions>,
     pub text_owner: Mutex<Option<String>>,
     pub placing: AtomicBool,
 }
@@ -132,6 +130,31 @@ pub fn request_refresh(app: &AppHandle) {
         eprintln!("[displays] {error}");
     }
 }
+pub fn request_session_refresh(app: &AppHandle) {
+    if app
+        .state::<Displays>()
+        .sessions_pending
+        .swap(true, Ordering::SeqCst)
+    {
+        return;
+    }
+    let handle = app.clone();
+    if let Err(error) = app.run_on_main_thread(move || {
+        handle
+            .state::<Displays>()
+            .sessions_pending
+            .store(false, Ordering::SeqCst);
+        if let Err(error) = refresh_sessions(&handle) {
+            eprintln!("[spaces] {error}");
+            let _ = handle.emit("app:error", error);
+        }
+    }) {
+        app.state::<Displays>()
+            .sessions_pending
+            .store(false, Ordering::SeqCst);
+        eprintln!("[spaces] {error}");
+    }
+}
 pub fn reconcile(app: &AppHandle) -> Result<(), String> {
     let monitors = app.available_monitors().map_err(|e| e.to_string())?;
     if monitors.is_empty() {
@@ -180,11 +203,13 @@ pub fn reconcile(app: &AppHandle) -> Result<(), String> {
     {
         windows::end_text_edit(app)?;
         if let Some(window) = app.get_webview_window(&old.label) {
+            state.sessions.lock().unwrap().suspend(&old.label);
             window.destroy().map_err(|e| e.to_string())?;
             platform::forget_overlay(app, &old.label);
         }
     }
     *state.entries.lock().unwrap() = next;
+    refresh_sessions(app)?;
     invoke_display(app)?;
     windows::place_hotbar(app)?;
     windows::refresh_sticky(app)?;
@@ -229,6 +254,7 @@ pub fn place(
     }
 }
 pub fn history_action(app: &AppHandle, event: &str) -> Result<(), String> {
+    refresh_sessions(app)?;
     windows::end_text_edit(app)?;
     invoke_display(app)?;
     let point = app.cursor_position().map_err(|e| e.to_string())?;
@@ -242,34 +268,108 @@ pub fn history_action(app: &AppHandle, event: &str) -> Result<(), String> {
         .iter()
         .find(|e| e.monitor.position() == monitor.position() && e.monitor.name() == monitor.name())
         .ok_or("Display overlay is unavailable")?;
+    if !session_ready(app, &entry.label) {
+        return Err("Wait for the active Space's annotations to load".into());
+    }
     app.emit_to(&entry.label, event, ())
         .map_err(|e| e.to_string())
 }
-pub fn session(
-    app: &AppHandle,
-    label: &str,
-    snapshot: Option<serde_json::Value>,
-) -> Result<Option<serde_json::Value>, String> {
-    let state = app.state::<Displays>();
-    let id = state
-        .entries
+pub fn session_ready(app: &AppHandle, label: &str) -> bool {
+    app.state::<Displays>()
+        .sessions
         .lock()
         .unwrap()
-        .iter()
-        .find(|e| e.label == label)
-        .map(|e| e.id.clone())
-        .ok_or("Display session is unavailable")?;
-    let mut sessions = state.sessions.lock().unwrap();
-    if let Some(snapshot) = snapshot {
-        sessions.insert(id, snapshot);
-        return Ok(None);
+        .is_ready(label)
+}
+pub fn refresh_sessions(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<Displays>();
+    let entries = state.entries.lock().unwrap().clone();
+    let monitors: Vec<_> = entries.iter().map(|e| e.monitor.clone()).collect();
+    let scopes = match platform::active_spaces(&monitors) {
+        Ok(scopes) => scopes,
+        Err(error) => {
+            let error = format!("Annotations paused: {error}");
+            let changed = state.sessions.lock().unwrap().error.as_ref() != Some(&error);
+            state.sessions.lock().unwrap().error = Some(error.clone());
+            if let Err(error) = windows::end_text_edit(app) {
+                eprintln!("[spaces] finish text: {error}");
+            }
+            for entry in &entries {
+                state.sessions.lock().unwrap().suspend(&entry.label);
+                if let Some(window) = app.get_webview_window(&entry.label) {
+                    window
+                        .set_ignore_cursor_events(true)
+                        .map_err(|e| e.to_string())?;
+                    window.hide().map_err(|e| e.to_string())?;
+                    if changed {
+                        app.emit_to(&entry.label, "overlay:session-changed", ())
+                            .map_err(|e| e.to_string())?;
+                    }
+                }
+            }
+            if changed {
+                eprintln!("[spaces] {error}");
+                let _ = app.emit("app:error", error);
+            }
+            return Ok(());
+        }
+    };
+    state.sessions.lock().unwrap().error = None;
+    for (entry, scope) in entries.iter().zip(scopes) {
+        let changed = state
+            .sessions
+            .lock()
+            .unwrap()
+            .activate(&entry.label, &entry.id, &scope);
+        if changed {
+            if let Err(error) = windows::end_text_edit(app) {
+                eprintln!("[spaces] finish text: {error}");
+            }
+            if let Some(window) = app.get_webview_window(&entry.label) {
+                window
+                    .set_ignore_cursor_events(true)
+                    .map_err(|e| e.to_string())?;
+                window.hide().map_err(|e| e.to_string())?;
+                app.emit_to(&entry.label, "overlay:session-changed", ())
+                    .map_err(|e| e.to_string())?;
+            }
+        }
     }
-    Ok(sessions.get(&id).cloned())
+    Ok(())
+}
+pub fn ready_session(app: &AppHandle, label: &str, generation: u64) -> Result<bool, String> {
+    refresh_sessions(app)?;
+    if !app
+        .state::<Displays>()
+        .sessions
+        .lock()
+        .unwrap()
+        .mark_ready(label, generation)
+    {
+        return Ok(false);
+    }
+    let window = app
+        .get_webview_window(label)
+        .ok_or("Display overlay is unavailable")?;
+    let shown = window
+        .set_ignore_cursor_events(!current_capture(app))
+        .and_then(|_| platform::show_without_focus(&window));
+    if let Err(error) = shown {
+        app.state::<Displays>()
+            .sessions
+            .lock()
+            .unwrap()
+            .suspend(label);
+        let _ = window.set_ignore_cursor_events(true);
+        let _ = window.hide();
+        return Err(error.to_string());
+    }
+    Ok(true)
 }
 pub fn pointer_mode(app: &AppHandle, capture: bool) -> Result<(), String> {
     for window in overlays(app) {
         window
-            .set_ignore_cursor_events(!capture)
+            .set_ignore_cursor_events(!capture || !session_ready(app, window.label()))
             .map_err(|e| e.to_string())?;
     }
     Ok(())

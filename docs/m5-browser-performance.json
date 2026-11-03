@@ -1,0 +1,14 @@
+{
+  "method": "Development preview pointer-event timestamp to completion of canvas draw submission",
+  "samples": 49,
+  "medianMilliseconds": 12.1,
+  "p95Milliseconds": 12.8,
+  "viewportCssPixels": [
+    1280,
+    720
+  ],
+  "devicePixelRatio": 1,
+  "input": "Two pen clicks and five pen drags across two simulated display webviews",
+  "ipc": "Mocked; no native IPC or slideshow compositor in the timing path",
+  "nativeRetinaLatencyVerified": false
+}

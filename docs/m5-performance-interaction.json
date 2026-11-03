@@ -1,0 +1,316 @@
+{
+  "measuredAt": "2026-11-03T07:26:06.760911+00:00",
+  "macOS": "27.0.1",
+  "hardware": "Apple M3",
+  "appAgeAtStart": "02:36",
+  "warmupSeconds": 15,
+  "processCpuSeconds": {
+    "78539": 1.95,
+    "78541": 0.01,
+    "78542": 0.23,
+    "78543": 0.12,
+    "78544": 0.01,
+    "78545": 0,
+    "78546": 0.08,
+    "78547": 0.08,
+    "78548": 0,
+    "78549": 0,
+    "78551": 0,
+    "79335": 0.74
+  },
+  "durationSeconds": 31.45,
+  "cpuSeconds": 3.22,
+  "averageCpuPercentOfOneCore": 10.238,
+  "rssBytesRange": [
+    269975552,
+    354811904
+  ],
+  "physicalFootprintBytes": 366829944,
+  "processes": [
+    {
+      "name": "com.apple.WebKit.GPU",
+      "pid": 78542,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 77284144,
+      "auxiliary": {
+        "phys_footprint_peak": 98911000,
+        "phys_footprint": 77284144
+      }
+    },
+    {
+      "name": "com.apple.WebKit.WebContent",
+      "pid": 78543,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 63783752,
+      "auxiliary": {
+        "phys_footprint_peak": 80347976,
+        "phys_footprint": 63783752
+      }
+    },
+    {
+      "name": "com.apple.WebKit.WebContent",
+      "pid": 79335,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 48153560,
+      "auxiliary": {
+        "phys_footprint_peak": 53412824,
+        "phys_footprint": 48153560
+      }
+    },
+    {
+      "name": "com.apple.WebKit.WebContent",
+      "pid": 78545,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 43385648,
+      "auxiliary": {
+        "phys_footprint_peak": 53330760,
+        "phys_footprint": 43385648
+      }
+    },
+    {
+      "name": "waypoint",
+      "pid": 78539,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 37749888,
+      "auxiliary": {
+        "phys_footprint_peak": 39093376,
+        "phys_footprint": 37749888
+      }
+    },
+    {
+      "name": "MTLCompilerService",
+      "pid": 78549,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 25461264,
+      "auxiliary": {
+        "phys_footprint_peak": 40206888,
+        "phys_footprint": 25461264
+      }
+    },
+    {
+      "name": "com.apple.WebKit.WebContent",
+      "pid": 78546,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 24576864,
+      "auxiliary": {
+        "phys_footprint_peak": 28214112,
+        "phys_footprint": 24576864
+      }
+    },
+    {
+      "name": "com.apple.WebKit.WebContent",
+      "pid": 78547,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 21431064,
+      "auxiliary": {
+        "phys_footprint_peak": 24003352,
+        "phys_footprint": 21431064
+      }
+    },
+    {
+      "name": "ThemeWidgetControlViewService",
+      "pid": 78551,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 12616136,
+      "auxiliary": {
+        "phys_footprint_peak": 13156808,
+        "phys_footprint": 12616136
+      }
+    },
+    {
+      "name": "com.apple.WebKit.Networking",
+      "pid": 78544,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 7012808,
+      "auxiliary": {
+        "phys_footprint_peak": 8339912,
+        "phys_footprint": 7012808
+      }
+    },
+    {
+      "name": "com.apple.audio.SandboxHelper",
+      "pid": 78548,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 3293712,
+      "auxiliary": {
+        "phys_footprint_peak": 5800464,
+        "phys_footprint": 3293712
+      }
+    },
+    {
+      "name": "SetStoreUpdateService",
+      "pid": 78541,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 3064144,
+      "auxiliary": {
+        "phys_footprint_peak": 4554992,
+        "phys_footprint": 3064144
+      }
+    }
+  ],
+  "samples": [
+    {
+      "elapsedSeconds": 1.048,
+      "rssBytes": 269975552,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 2.094,
+      "rssBytes": 270827520,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 3.157,
+      "rssBytes": 270925824,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 4.194,
+      "rssBytes": 347389952,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 5.234,
+      "rssBytes": 349601792,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 6.281,
+      "rssBytes": 345014272,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 7.331,
+      "rssBytes": 343506944,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 8.379,
+      "rssBytes": 343490560,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 9.44,
+      "rssBytes": 333496320,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 10.483,
+      "rssBytes": 333185024,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 11.527,
+      "rssBytes": 333348864,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 12.571,
+      "rssBytes": 345194496,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 13.615,
+      "rssBytes": 349126656,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 14.662,
+      "rssBytes": 350486528,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 15.71,
+      "rssBytes": 351518720,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 16.758,
+      "rssBytes": 353976320,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 17.799,
+      "rssBytes": 354811904,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 18.856,
+      "rssBytes": 347570176,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 19.891,
+      "rssBytes": 335200256,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 20.935,
+      "rssBytes": 335216640,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 21.978,
+      "rssBytes": 335331328,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 23.024,
+      "rssBytes": 335265792,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 24.073,
+      "rssBytes": 335233024,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 25.121,
+      "rssBytes": 334315520,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 26.17,
+      "rssBytes": 336166912,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 27.217,
+      "rssBytes": 341688320,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 28.264,
+      "rssBytes": 341884928,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 29.338,
+      "rssBytes": 336609280,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 30.4,
+      "rssBytes": 307970048,
+      "processCount": 12
+    },
+    {
+      "elapsedSeconds": 31.45,
+      "rssBytes": 317292544,
+      "processCount": 12
+    }
+  ],
+  "binarySha256": "123551871735de46a44a606b7bce34b1b60957808aafa0ae9043c7b079368465"
+}

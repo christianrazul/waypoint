@@ -66,7 +66,10 @@ function Hotbar() {
     void commands
       .getFeatures()
       .then((features) => {
-        if (!disposed) setFeatures(features);
+        if (!disposed) {
+          setFeatures(features);
+          if (features.annotationError) useAppStore.getState().reportError(features.annotationError);
+        }
       })
       .catch(useAppStore.getState().reportError);
     return () => {

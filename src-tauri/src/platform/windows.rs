@@ -107,3 +107,6 @@ unsafe extern "system" fn display_message(
 }
 pub fn stop_display_watch() {}
 pub fn forget_overlay(_app: &tauri::AppHandle, _label: &str) {}
+pub fn active_spaces(monitors: &[tauri::Monitor]) -> Result<Vec<String>, String> {
+    Ok(vec!["desktop".into(); monitors.len()])
+}
