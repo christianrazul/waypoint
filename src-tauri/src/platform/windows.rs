@@ -20,3 +20,34 @@ pub fn show_without_focus(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     // WS_EX_NOACTIVATE windows do not activate on show.
     window.show()
 }
+
+use std::sync::atomic::{AtomicIsize, Ordering};
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, SetForegroundWindow};
+static PREVIOUS_WINDOW: AtomicIsize = AtomicIsize::new(0);
+
+pub fn begin_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    PREVIOUS_WINDOW.store(unsafe { GetForegroundWindow() } as isize, Ordering::SeqCst);
+    window.set_focusable(true).map_err(|e| e.to_string())?;
+    if let Err(error) = window.set_focus() {
+        let _ = window.set_focusable(false);
+        PREVIOUS_WINDOW.store(0, Ordering::SeqCst);
+        return Err(error.to_string());
+    }
+    Ok(())
+}
+pub fn end_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    window.set_focusable(false).map_err(|e| e.to_string())?;
+    let previous = PREVIOUS_WINDOW.swap(0, Ordering::SeqCst);
+    let current = unsafe { GetForegroundWindow() };
+    let own = window.hwnd().map_err(|e| e.to_string())?.0;
+    if previous != 0
+        && (current == own || current as isize == previous)
+        && unsafe { SetForegroundWindow(previous as _) } == 0
+    {
+        return Err("Could not return keyboard focus to the presenting app".into());
+    }
+    Ok(())
+}
+pub fn sample_color(_app: &tauri::AppHandle) -> Result<(), String> {
+    Err("Use the web eyedropper on Windows".into())
+}

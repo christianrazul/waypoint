@@ -4,7 +4,13 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "get_drawing_state",
-            "toggle_pen",
+            "select_tool",
+            "begin_text_edit",
+            "end_text_edit",
+            "get_features",
+            "begin_sampling",
+            "end_sampling",
+            "sample_color",
             "set_color",
             "clear_annotations",
             "close_hotbar",

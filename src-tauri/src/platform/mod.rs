@@ -91,3 +91,13 @@ pub fn apply_level(
 pub fn show_without_focus(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     imp::show_without_focus(window)
 }
+
+pub fn begin_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    imp::begin_text_edit(window)
+}
+pub fn end_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    imp::end_text_edit(window)
+}
+pub fn sample_color(app: &tauri::AppHandle) -> Result<(), String> {
+    imp::sample_color(app)
+}

@@ -1,4 +1,4 @@
-use crate::{platform, shortcuts, AppState};
+use crate::{platform, shortcuts, AppState, Tool};
 use serde::{Deserialize, Serialize};
 use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, Monitor, WebviewUrl, WebviewWindow,
@@ -9,7 +9,11 @@ use tauri_plugin_store::StoreExt;
 pub const OVERLAY: &str = "overlay";
 pub const HOTBAR: &str = "hotbar";
 pub const FLOATING: &[&str] = &[HOTBAR];
-const WIDTH: f64 = 844.0;
+const WIDTH: f64 = if cfg!(all(target_os = "macos", not(feature = "native-eyedropper"))) {
+    794.0
+} else {
+    844.0
+};
 const HEIGHT: f64 = 112.0;
 const PICKER_HEIGHT: f64 = 384.0;
 const MARGIN: f64 = 24.0;
@@ -68,6 +72,14 @@ pub fn create_overlay(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .inner_size(width, height)
         .build()?;
     platform::configure_overlay(&window, level)?;
+    let handle = app.clone();
+    window.on_window_event(move |event| {
+        if matches!(event, WindowEvent::Focused(false)) {
+            if let Err(error) = handle.emit("text:commit", ()) {
+                eprintln!("[text] {error}");
+            }
+        }
+    });
     window.set_ignore_cursor_events(true)?;
     platform::show_without_focus(&window)?;
     Ok(window)
@@ -167,32 +179,47 @@ fn tray_sync(app: &AppHandle) {
 }
 
 pub fn set_click_through(app: &AppHandle, enabled: bool) -> Result<(), String> {
-    let state = app.state::<AppState>();
-    let mut drawing = state.drawing.lock().unwrap();
-    if drawing.armed == !enabled {
-        return Ok(());
+    let tool = app.state::<AppState>().drawing.lock().unwrap().tool;
+    set_mode(app, tool, !enabled)
+}
+
+pub fn select_tool(app: &AppHandle, tool: Tool) -> Result<(), String> {
+    let current = app.state::<AppState>().drawing.lock().unwrap().clone();
+    set_mode(app, tool, !current.armed || current.tool != tool)
+}
+
+fn set_mode(app: &AppHandle, tool: Tool, armed: bool) -> Result<(), String> {
+    if app.state::<AppState>().drawing.lock().unwrap().sampling {
+        return Err("Finish color sampling before changing tools".into());
     }
-    shortcuts::set_escape(app, !enabled)?;
+    end_text_edit(app)?;
+    let state = app.state::<AppState>();
+    let current = state.drawing.lock().unwrap().clone();
     let overlay = app
         .get_webview_window(OVERLAY)
         .ok_or("Annotation overlay is unavailable")?;
-    if let Err(error) = overlay.set_ignore_cursor_events(enabled) {
-        if let Err(rollback) = shortcuts::set_escape(app, drawing.armed) {
-            eprintln!("[shortcut] {rollback}");
-        }
+    shortcuts::set_annotation_shortcuts(app, armed)?;
+    if let Err(error) = overlay.set_ignore_cursor_events(!armed) {
+        let _ = shortcuts::set_annotation_shortcuts(app, current.armed);
         return Err(error.to_string());
     }
-    if let Err(error) = overlay.set_cursor_icon(if enabled {
+    let cursor = if !armed {
         tauri::CursorIcon::Default
+    } else if tool == Tool::Text {
+        tauri::CursorIcon::Text
     } else {
         tauri::CursorIcon::Crosshair
-    }) {
+    };
+    if let Err(error) = overlay.set_cursor_icon(cursor) {
         eprintln!("[cursor] {error}");
     }
-    drawing.armed = !enabled;
-    drawing.revision += 1;
-    let snapshot = drawing.clone();
-    drop(drawing);
+    let snapshot = {
+        let mut drawing = state.drawing.lock().unwrap();
+        drawing.tool = tool;
+        drawing.armed = armed;
+        drawing.revision += 1;
+        drawing.clone()
+    };
     tray_sync(app);
     app.emit("tool:changed", snapshot)
         .map_err(|e| e.to_string())
@@ -201,6 +228,132 @@ pub fn set_click_through(app: &AppHandle, enabled: bool) -> Result<(), String> {
 pub fn toggle_click_through(app: &AppHandle) -> Result<(), String> {
     let armed = app.state::<AppState>().drawing.lock().unwrap().armed;
     set_click_through(app, armed)
+}
+
+pub fn begin_text_edit(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let current = state.drawing.lock().unwrap().clone();
+    if current.editing {
+        return Ok(());
+    }
+    if !current.armed || current.tool != Tool::Text || current.sampling {
+        return Err("Select the text tool before typing".into());
+    }
+    let overlay = app
+        .get_webview_window(OVERLAY)
+        .ok_or("Annotation overlay is unavailable")?;
+    shortcuts::set_annotation_shortcuts(app, false)?;
+    if let Err(error) = platform::begin_text_edit(&overlay) {
+        let _ = shortcuts::set_annotation_shortcuts(app, true);
+        return Err(error);
+    }
+    let snapshot = {
+        let mut drawing = state.drawing.lock().unwrap();
+        drawing.editing = true;
+        drawing.revision += 1;
+        drawing.clone()
+    };
+    app.emit("tool:changed", snapshot)
+        .map_err(|e| e.to_string())
+}
+
+pub fn end_text_edit(app: &AppHandle) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let snapshot = {
+        let mut drawing = state.drawing.lock().unwrap();
+        if !drawing.editing {
+            return Ok(());
+        }
+        drawing.editing = false;
+        drawing.revision += 1;
+        drawing.clone()
+    };
+    let focus_result = if let Some(overlay) = app.get_webview_window(OVERLAY) {
+        platform::end_text_edit(&overlay)
+    } else {
+        Err("Annotation overlay is unavailable".into())
+    };
+    let shortcut_result =
+        shortcuts::set_annotation_shortcuts(app, snapshot.armed && !snapshot.sampling);
+    let snapshot = if shortcut_result.is_err() {
+        if let Some(overlay) = app.get_webview_window(OVERLAY) {
+            if let Err(error) = overlay.set_ignore_cursor_events(true) {
+                eprintln!("[text] pass-through recovery: {error}");
+            }
+        }
+        let mut drawing = state.drawing.lock().unwrap();
+        drawing.armed = false;
+        drawing.revision += 1;
+        drawing.clone()
+    } else {
+        snapshot
+    };
+    tray_sync(app);
+    let event_result = app
+        .emit("tool:changed", snapshot)
+        .map_err(|e| e.to_string());
+    focus_result.and(shortcut_result).and(event_result)
+}
+
+pub fn begin_sampling(app: &AppHandle) -> Result<(), String> {
+    end_text_edit(app)?;
+    let state = app.state::<AppState>();
+    let current = state.drawing.lock().unwrap().clone();
+    if current.sampling {
+        return Err("A color sampling session is already open".into());
+    }
+    let overlay = app
+        .get_webview_window(OVERLAY)
+        .ok_or("Annotation overlay is unavailable")?;
+    shortcuts::set_annotation_shortcuts(app, false)?;
+    if let Err(error) = overlay.set_ignore_cursor_events(true) {
+        let _ = shortcuts::set_annotation_shortcuts(app, current.armed);
+        return Err(error.to_string());
+    }
+    let snapshot = {
+        let mut drawing = state.drawing.lock().unwrap();
+        drawing.sampling = true;
+        drawing.revision += 1;
+        drawing.clone()
+    };
+    app.emit("tool:changed", snapshot)
+        .map_err(|e| e.to_string())
+}
+
+pub fn finish_sampling(app: &AppHandle, color: Option<String>) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    let current = state.drawing.lock().unwrap().clone();
+    if !current.sampling {
+        return Ok(());
+    }
+    let shortcuts_result = shortcuts::set_annotation_shortcuts(app, current.armed);
+    let mut armed = current.armed && shortcuts_result.is_ok();
+    let overlay_result = app
+        .get_webview_window(OVERLAY)
+        .ok_or_else(|| "Annotation overlay is unavailable".to_owned())
+        .and_then(|overlay| {
+            overlay
+                .set_ignore_cursor_events(!armed)
+                .map_err(|e| e.to_string())
+        });
+    if overlay_result.is_err() {
+        armed = false;
+        let _ = shortcuts::set_annotation_shortcuts(app, false);
+    }
+    let snapshot = {
+        let mut drawing = state.drawing.lock().unwrap();
+        drawing.sampling = false;
+        drawing.armed = armed;
+        if let Some(color) = color {
+            drawing.color = color;
+        }
+        drawing.revision += 1;
+        drawing.clone()
+    };
+    tray_sync(app);
+    app.emit("color:changed", snapshot)
+        .map_err(|e| e.to_string())?;
+    shortcuts_result.and(overlay_result)
 }
 
 pub fn set_level(app: &AppHandle, level: platform::Level) -> tauri::Result<()> {

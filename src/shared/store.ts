@@ -11,7 +11,14 @@ interface AppStore {
 }
 
 export const useAppStore = create<AppStore>((set) => ({
-  drawing: { tool: "pen", armed: false, color: "#F0509A", revision: -1 },
+  drawing: {
+    tool: "pen",
+    armed: false,
+    editing: false,
+    sampling: false,
+    color: "#F0509A",
+    revision: -1,
+  },
   ready: false,
   error: null,
   apply: (drawing) =>

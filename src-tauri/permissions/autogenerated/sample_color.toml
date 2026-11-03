@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sample-color"
+description = "Enables the sample_color command without any pre-configured scope."
+commands.allow = ["sample_color"]
+
+[[permission]]
+identifier = "deny-sample-color"
+description = "Denies the sample_color command without any pre-configured scope."
+commands.deny = ["sample_color"]

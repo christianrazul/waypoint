@@ -1,16 +1,26 @@
 //! macOS: windows become NSPanels with the non-activating style mask, so clicking them never
 //! activates Waypoint and the presenting app keeps keyboard focus.
 
+use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication, NSWorkspace};
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 use tauri::{ActivationPolicy, Manager};
 use tauri_nspanel::{tauri_panel, CollectionBehavior, ManagerExt, StyleMask, WebviewWindowExt};
 
 use super::Level;
 
+static TEXT_EDITING: AtomicBool = AtomicBool::new(false);
+static PREVIOUS_APP: AtomicI32 = AtomicI32::new(0);
+
 tauri_panel! {
-    panel!(WaypointPanel {
+    panel!(OverlayPanel {
         config: {
-            // Never key, never main: key events keep going to Keynote / PowerPoint.
-            // The M2 text tool will flip this through a static flag while typing.
+            can_become_key_window: TEXT_EDITING.load(Ordering::SeqCst),
+            can_become_main_window: false,
+            is_floating_panel: true
+        }
+    })
+    panel!(FloatingPanel {
+        config: {
             can_become_key_window: false,
             can_become_main_window: false,
             is_floating_panel: true
@@ -47,8 +57,12 @@ fn behavior() -> CollectionBehavior {
         .ignores_cycle()
 }
 
-fn to_panel(window: &tauri::WebviewWindow, level: i64) -> tauri::Result<()> {
-    let panel = window.to_panel::<WaypointPanel>()?;
+fn to_panel(window: &tauri::WebviewWindow, level: i64, overlay: bool) -> tauri::Result<()> {
+    let panel = if overlay {
+        window.to_panel::<OverlayPanel>()?
+    } else {
+        window.to_panel::<FloatingPanel>()?
+    };
     panel
         .add_style_mask(StyleMask::empty().nonactivating_panel().into())
         .map_err(|err| tauri::Error::Anyhow(err.into()))?;
@@ -61,11 +75,11 @@ fn to_panel(window: &tauri::WebviewWindow, level: i64) -> tauri::Result<()> {
 }
 
 pub fn configure_overlay(window: &tauri::WebviewWindow, level: Level) -> tauri::Result<()> {
-    to_panel(window, raw_level(level))
+    to_panel(window, raw_level(level), true)
 }
 
 pub fn configure_floating(window: &tauri::WebviewWindow, level: Level) -> tauri::Result<()> {
-    to_panel(window, raw_level(level) + 1)
+    to_panel(window, raw_level(level) + 1, false)
 }
 
 pub fn apply_level(
@@ -93,4 +107,77 @@ pub fn show_without_focus(window: &tauri::WebviewWindow) -> tauri::Result<()> {
         .map_err(|_| tauri::Error::WindowNotFound)?;
     panel.show();
     Ok(())
+}
+
+pub fn begin_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    let panel = window
+        .app_handle()
+        .get_webview_panel(window.label())
+        .map_err(|_| "Annotation panel is unavailable".to_owned())?;
+    let previous = NSWorkspace::sharedWorkspace().frontmostApplication();
+    PREVIOUS_APP.store(
+        previous.map(|app| app.processIdentifier()).unwrap_or(0),
+        Ordering::SeqCst,
+    );
+    TEXT_EDITING.store(true, Ordering::SeqCst);
+    panel.make_key_window();
+    if !panel.as_panel().isKeyWindow() {
+        TEXT_EDITING.store(false, Ordering::SeqCst);
+        PREVIOUS_APP.store(0, Ordering::SeqCst);
+        return Err("The text editor could not receive keyboard focus".into());
+    }
+    Ok(())
+}
+
+pub fn end_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    TEXT_EDITING.store(false, Ordering::SeqCst);
+    if let Ok(panel) = window.app_handle().get_webview_panel(window.label()) {
+        panel.resign_key_window();
+    }
+    let pid = PREVIOUS_APP.swap(0, Ordering::SeqCst);
+    let current = NSWorkspace::sharedWorkspace().frontmostApplication();
+    let own_pid = NSRunningApplication::currentApplication().processIdentifier();
+    let current_pid = current.map(|app| app.processIdentifier()).unwrap_or(0);
+    if pid != 0 && pid != own_pid && (current_pid == own_pid || current_pid == pid) {
+        if let Some(previous) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
+            if !previous.isTerminated()
+                && !previous.activateWithOptions(NSApplicationActivationOptions::empty())
+            {
+                return Err("Could not return keyboard focus to the presenting app".into());
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(feature = "native-eyedropper")]
+pub fn sample_color(app: &tauri::AppHandle) -> Result<(), String> {
+    use block2::RcBlock;
+    use objc2_app_kit::{NSColor, NSColorSampler, NSColorSpace};
+    let handle = app.clone();
+    let callback = RcBlock::new(move |color: *mut NSColor| {
+        let selected = unsafe { color.as_ref() }
+            .and_then(|color| color.colorUsingColorSpace(&NSColorSpace::sRGBColorSpace()));
+        let hex = selected.map(|color| {
+            let channel = |value: f64| (value.clamp(0.0, 1.0) * 255.0).round() as u8;
+            format!(
+                "#{:02X}{:02X}{:02X}",
+                channel(color.redComponent()),
+                channel(color.greenComponent()),
+                channel(color.blueComponent())
+            )
+        });
+        if let Err(error) = crate::windows::finish_sampling(&handle, hex) {
+            eprintln!("[eyedropper] {error}");
+        }
+    });
+    unsafe {
+        NSColorSampler::new().showSamplerWithSelectionHandler(&callback);
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "native-eyedropper"))]
+pub fn sample_color(_app: &tauri::AppHandle) -> Result<(), String> {
+    Err("Native color sampling is disabled until focus behavior is verified".into())
 }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-begin-text-edit"
+description = "Enables the begin_text_edit command without any pre-configured scope."
+commands.allow = ["begin_text_edit"]
+
+[[permission]]
+identifier = "deny-begin-text-edit"
+description = "Denies the begin_text_edit command without any pre-configured scope."
+commands.deny = ["begin_text_edit"]

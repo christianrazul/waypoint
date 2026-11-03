@@ -9,6 +9,8 @@ import { createRoot } from "react-dom/client";
 import { commands } from "../shared/ipc";
 import { connectDrawingState, runCommand, useAppStore } from "../shared/store";
 import { ColorPicker } from "./ColorPicker";
+import type { Features, Tool } from "../shared/types";
+import { sampleWebColor, webEyeDropper } from "./eyedropper";
 import { Icon, type IconName } from "./Icon";
 import "../shared/tokens.css";
 import "./styles.css";
@@ -19,27 +21,50 @@ const COLORS = [
   { label: "Green", color: "#5BE36A" },
 ];
 
-function FutureButton({ label, icon }: { label: string; icon?: IconName }) {
-  return (
-    <span title={`${label} — coming soon`} className="disabled-control">
-      <button
-        aria-label={label}
-        disabled
-        className={`icon-button ${label === "Text" ? "text-tool" : ""}`}
-      >
-        {icon ? <Icon name={icon} /> : "T"}
-      </button>
-    </span>
-  );
-}
+const TOOLS: { tool: Tool; label: string; icon?: IconName }[] = [
+  { tool: "pen", label: "Freehand pen", icon: "pen" },
+  { tool: "arrow", label: "Pointer arrow", icon: "arrow" },
+  { tool: "rectangle", label: "Rectangle", icon: "rectangle" },
+  { tool: "ellipse", label: "Ellipse", icon: "ellipse" },
+  { tool: "text", label: "Text" },
+];
 
 function Hotbar() {
   const { drawing, ready, error } = useAppStore();
+  const [features, setFeatures] = useState<Features>({
+    nativeEyedropper: false,
+    webEyedropper: false,
+  });
+  const [sampling, setSampling] = useState(false);
   const [picker, setPicker] = useState(false);
   const [resizing, setResizing] = useState(false);
   const pendingColor = useRef<string | null>(null);
   const sendingColor = useRef(false);
   useEffect(connectDrawingState, []);
+  useEffect(() => {
+    let disposed = false;
+    void commands
+      .getFeatures()
+      .then((features) => {
+        if (!disposed) setFeatures(features);
+      })
+      .catch(useAppStore.getState().reportError);
+    return () => {
+      disposed = true;
+    };
+  }, []);
+  const busy = sampling || drawing.sampling;
+  const pickScreenColor = () => {
+    setSampling(true);
+    setPicker(false);
+    void commands
+      .setPickerOpen(false)
+      .catch(useAppStore.getState().reportError);
+    const action = features.nativeEyedropper
+      ? commands.sampleColor()
+      : sampleWebColor();
+    void runCommand(() => action).finally(() => setSampling(false));
+  };
 
   const setColor = (color: string) => {
     pendingColor.current = color;
@@ -96,7 +121,7 @@ function Hotbar() {
               className="icon-button color-button"
               aria-label={label}
               aria-pressed={drawing.color === color}
-              disabled={!ready}
+              disabled={!ready || busy}
               onClick={() => {
                 setColor(color);
                 if (picker) void changePicker(false);
@@ -112,33 +137,45 @@ function Hotbar() {
             aria-label="Color wheel"
             aria-expanded={picker}
             aria-pressed={custom}
-            disabled={!ready || resizing}
+            disabled={!ready || resizing || busy}
             onClick={() => void changePicker(!picker)}
             title="Custom color"
             style={{ "--swatch": drawing.color } as CSSProperties}
           >
             <span className={`swatch wheel ${custom ? "custom" : ""}`} />
           </button>
-          <FutureButton label="Eyedropper" icon="eyedropper" />
+          {(features.nativeEyedropper ||
+            (features.webEyedropper && webEyeDropper())) && (
+            <button
+              className="icon-button"
+              aria-label="Eyedropper"
+              title="Pick a screen color"
+              disabled={!ready || busy}
+              onClick={pickScreenColor}
+            >
+              <Icon name="eyedropper" />
+            </button>
+          )}
         </div>
         <div className="divider" />
         <div className="button-group" role="group" aria-label="Drawing tools">
-          <button
-            className={`icon-button pen ${drawing.armed ? "active" : ""}`}
-            aria-label="Freehand pen"
-            aria-pressed={drawing.armed}
-            title={
-              drawing.armed ? "Turn drawing off (Esc)" : "Draw (Ctrl+Option+D)"
-            }
-            disabled={!ready}
-            onClick={() => void runCommand(commands.togglePen)}
-          >
-            <Icon name="pen" />
-          </button>
-          <FutureButton label="Pointer arrow" icon="arrow" />
-          <FutureButton label="Rectangle" icon="rectangle" />
-          <FutureButton label="Ellipse" icon="ellipse" />
-          <FutureButton label="Text" />
+          {TOOLS.map(({ tool, label, icon }) => (
+            <button
+              key={tool}
+              className={`icon-button ${tool === "text" ? "text-tool" : ""} ${drawing.armed && drawing.tool === tool ? "active" : ""}`}
+              aria-label={label}
+              aria-pressed={drawing.armed && drawing.tool === tool}
+              title={
+                drawing.armed && drawing.tool === tool
+                  ? "Turn drawing off (Esc)"
+                  : label
+              }
+              disabled={!ready || busy}
+              onClick={() => void runCommand(() => commands.selectTool(tool))}
+            >
+              {icon ? <Icon name={icon} /> : "T"}
+            </button>
+          ))}
         </div>
         <div className="divider" />
         <span
@@ -154,12 +191,21 @@ function Hotbar() {
             Sticky
           </button>
         </span>
-        <FutureButton label="Eraser" icon="eraser" />
+        <button
+          className={`icon-button ${drawing.armed && drawing.tool === "eraser" ? "active" : ""}`}
+          aria-label="Eraser"
+          aria-pressed={drawing.armed && drawing.tool === "eraser"}
+          title="Erase whole objects"
+          disabled={!ready || busy}
+          onClick={() => void runCommand(() => commands.selectTool("eraser"))}
+        >
+          <Icon name="eraser" />
+        </button>
         <button
           className="icon-button clear"
           aria-label="Clear all"
           title="Clear all annotations"
-          disabled={!ready}
+          disabled={!ready || busy}
           onClick={() => void runCommand(commands.clearAnnotations)}
         >
           <Icon name="trash" />
@@ -168,6 +214,7 @@ function Hotbar() {
           className="close-button"
           aria-label="Close toolbar"
           title="Hide toolbar and turn drawing off"
+          disabled={busy}
           onClick={() => void runCommand(commands.closeHotbar)}
         >
           <Icon name="close" />

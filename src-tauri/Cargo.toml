@@ -5,6 +5,10 @@ description = "Screen annotation and agenda sticky for presenters"
 edition = "2021"
 rust-version = "1.80"
 
+[features]
+default = []
+native-eyedropper = []
+
 [lib]
 name = "waypoint_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
@@ -23,7 +27,12 @@ tauri-plugin-store = "=2.4.1"
 tauri-nspanel = "=2.1.1"
 objc2 = "=0.6.5"
 objc2-foundation = { version = "=0.3.2", features = ["NSString"] }
-objc2-app-kit = { version = "=0.3.2", features = ["NSWorkspace", "NSRunningApplication"] }
+objc2-app-kit = { version = "=0.3.2", features = ["NSWorkspace", "NSRunningApplication", "NSColorSampler", "NSColor", "NSColorSpace", "block2"] }
+
+block2 = "=0.6.2"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "=0.61.2", features = ["Win32_UI_WindowsAndMessaging"] }
 
 [profile.release]
 codegen-units = 1

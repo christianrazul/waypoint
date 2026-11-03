@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-begin-sampling"
+description = "Enables the begin_sampling command without any pre-configured scope."
+commands.allow = ["begin_sampling"]
+
+[[permission]]
+identifier = "deny-begin-sampling"
+description = "Denies the begin_sampling command without any pre-configured scope."
+commands.deny = ["begin_sampling"]

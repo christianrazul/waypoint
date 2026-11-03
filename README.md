@@ -4,13 +4,16 @@ Screen annotation and agenda sticky for presenters. Tauri 2 + React 18.
 
 ## Status
 
-M1 implementation: floating hotbar, pressure-sensitive freehand pen, preset/custom colors,
-pass-through, clear, close, and saved hotbar position. Remaining drawing tools and sticky
-controls are disabled until M2–M4. See [M1 verification](docs/m1-verification.md) for checks
-and the manual acceptance checklist.
+M2 implementation: floating hotbar; pen, arrow, rectangle, ellipse, text, whole-object eraser,
+undo/redo, preset/custom colors, pass-through, and saved hotbar position. Sticky controls
+remain disabled until M3–M4. macOS eyedropper is hidden behind a feature flag pending focus
+verification; Windows uses the web API when available.
 
 The [v1 roadmap](https://github.com/christianrazul/waypoint/issues/1) and
-[M1 specification](https://github.com/christianrazul/waypoint/issues/3) define the scope.
+[M2 specification](https://github.com/christianrazul/waypoint/issues/4) define the scope.
+See [M2 verification](docs/m2-verification.md) for tested behavior, the eyedropper fallback,
+and native acceptance checks. [M1 verification](docs/m1-verification.md) records the previous
+milestone's implementation.
 
 ## Requirements
 
@@ -30,32 +33,50 @@ cargo clippy --locked --manifest-path src-tauri/Cargo.toml -- -D warnings
 There is no Dock icon. Use the pen-nib icon in the menu bar:
 
 - Left click: show or hide the hotbar. Hiding also turns drawing off.
-- Right click: hotbar, click-through, window-level debugging, clear, and quit actions.
-- Freehand pen: click to arm; click again to return to pass-through.
+- Right click: hotbar, click-through, window-level debugging, undo/redo, clear, and quit.
+- Click a tool to arm it; re-click the active tool to return to pass-through.
 - Ctrl+Option+D: toggle drawing / pass-through, even with the hotbar hidden.
-- Esc: return to pass-through. Registered globally only while drawing is armed.
+- Esc: return to pass-through. While typing, Esc commits text instead; press it again to disarm.
+- Cmd+Z / Shift+Cmd+Z on macOS, Ctrl+Z / Shift+Ctrl+Z on Windows: undo / redo annotations.
+  These shortcuts are global only while armed and are released during text editing or sampling.
+- Shift-drag: constrain arrows to 45-degree steps, rectangles to squares, ellipses to circles.
+- Text: click to place, type, and commit with Enter, Esc, or a click outside. Empty text is discarded.
+  Inter 600 at 22px; keyboard focus is borrowed only while typing and returned on commit.
+- Eraser: click or drag over an object's outline to delete the whole object. A drag is one undo step.
 - Colors: pink, blue, green, or the color wheel's saturation/brightness and hue controls.
-- Clear all: remove annotations. Close toolbar: hide it and return to pass-through.
+- Clear all: remove annotations; undo restores them. Close: hide the hotbar and return to pass-through.
 - Drag the grip to move the hotbar. Its position survives restarts.
 
-The hotbar starts visible with drawing off. Changing colors does not arm drawing.
-Annotations stay visible during pass-through and after hiding the hotbar; they are never
-saved and disappear on quit. Inter fonts ship locally; no runtime network is needed.
+The hotbar starts visible with drawing off. Changing colors does not arm drawing or recolor
+existing annotations. Strokes and history stay in memory during pass-through and after hiding
+the hotbar; they disappear on quit. Inter fonts ship locally; no runtime network is needed.
 
 ## Architecture
 
 - `src-tauri/src/platform/{macos,windows}.rs`: OS-specific behavior behind `platform/mod.rs`.
-  macOS uses never-key NSPanels so the presenting app keeps keyboard focus.
-- `src-tauri/src/{windows,tray,shortcuts}.rs`: window lifecycle, menu bar, and global shortcuts.
-- `src-tauri/src/lib.rs`: commands and authoritative drawing state. Mutations broadcast
-  revisioned snapshots so late initialization or reordered events cannot revert the UI.
-- `src-tauri/capabilities/*.json`: least-privilege capability per window. Settings and
-  window resizing remain native; webviews cannot directly access the persistence plugin.
-- `src/{overlay,hotbar}`: separate React entries. Overlay keeps vector strokes in memory,
-  caches completed paths, and schedules canvas frames only when drawing or resizing.
-- `src/shared/{types,store,ipc}.ts`: typed state, a Zustand store per webview, and IPC.
+  macOS uses separate overlay and floating-panel classes: only the overlay can temporarily
+  become key while typing. Focus restoration avoids activating an old app after a user switches
+  to a different one.
+- `src-tauri/src/{windows,tray,shortcuts}.rs`: window lifecycle, text/sampling transitions,
+  menu bar, and global shortcuts. Annotation shortcut changes roll back on registration failure.
+- `src-tauri/src/lib.rs`: commands and authoritative drawing state. Revisioned snapshots prevent
+  late initialization or reordered events from reverting tool, color, editing, or sampling state.
+- `src-tauri/capabilities/*.json`: least-privilege capability per window. Only the overlay can
+  acquire text focus; only the hotbar can select tools or initiate sampling.
+- `src/overlay/{controller,history,geometry,render}.ts`: pointer gestures, object-change commands,
+  constraints/hit-testing, and rendering. Completed paths and eraser outlines are cached;
+  canvas frames are scheduled only after changes, with no idle polling.
+- `src/{overlay,hotbar}`: separate React entries; `src/shared/{types,store,ipc}.ts`: annotation types,
+  a Zustand store per webview, and typed commands/events.
 - `src/shared/tokens.css`, `src/shared/fonts`: design values and bundled Inter weights.
 
 Hotbar positions use tauri-plugin-store (`settings.json` in the app data directory), keyed
 by display name, physical resolution, and display origin. Restored positions are clamped
 inside the primary display. Multiple overlays, display selection, and hot-plug are M5.
+
+## Browser preview
+
+Run `pnpm dev`, then open [the drawing preview](http://127.0.0.1:1420/dev/preview.html).
+It uses the actual hotbar and overlay components with mocked IPC. The slide diagram and
+Undo/Redo/Clear controls are development-only; the preview does not test native focus or
+OS shortcut registration and is excluded from the production build entries.

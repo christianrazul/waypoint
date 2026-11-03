@@ -70,6 +70,8 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             )?,
             &click_through,
             &level_menu,
+            &MenuItem::with_id(app, "undo", "Undo annotation", true, None::<&str>)?,
+            &MenuItem::with_id(app, "redo", "Redo annotation", true, None::<&str>)?,
             &MenuItem::with_id(app, CLEAR, "Clear annotations", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(
@@ -110,7 +112,17 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             let result = match id {
                 TOGGLE_PANEL => windows::toggle_hotbar(app),
                 CLICK_THROUGH => windows::toggle_click_through(app),
-                CLEAR => app.emit("annotations:clear", ()).map_err(|e| e.to_string()),
+                CLEAR | "undo" | "redo" => windows::end_text_edit(app).and_then(|()| {
+                    app.emit(
+                        match id {
+                            "undo" => "annotations:undo",
+                            "redo" => "annotations:redo",
+                            _ => "annotations:clear",
+                        },
+                        (),
+                    )
+                    .map_err(|e| e.to_string())
+                }),
                 QUIT => {
                     app.exit(0);
                     Ok(())

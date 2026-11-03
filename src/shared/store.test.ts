@@ -22,7 +22,14 @@ const snapshot = (
   revision: number,
   armed: boolean,
   color = "#F0509A",
-): DrawingState => ({ tool: "pen", armed, color, revision });
+): DrawingState => ({
+  tool: "pen",
+  armed,
+  editing: false,
+  sampling: false,
+  color,
+  revision,
+});
 
 beforeEach(() => {
   ipc.listeners.clear();

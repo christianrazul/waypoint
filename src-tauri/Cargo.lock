@@ -3968,6 +3968,7 @@ dependencies = [
 name = "waypoint"
 version = "0.1.0"
 dependencies = [
+ "block2",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
@@ -3978,6 +3979,7 @@ dependencies = [
  "tauri-nspanel",
  "tauri-plugin-global-shortcut",
  "tauri-plugin-store",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
