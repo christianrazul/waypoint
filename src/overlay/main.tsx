@@ -1,7 +1,7 @@
 import { connectSetupDismissal } from "../shared/setup-dismissal";
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { on } from "../shared/ipc";
+import { commands, on } from "../shared/ipc";
 import { connectDrawingState, useAppStore } from "../shared/store";
 import { DrawingController, type TextDraft } from "./controller";
 import { TEXT_FONT, TEXT_HEIGHT } from "./render";
@@ -24,15 +24,50 @@ function Overlay() {
       setEditor,
       useAppStore.getState().reportError,
     );
+    if (import.meta.env.DEV && location.pathname.startsWith("/dev/"))
+      controller.onInputFrame = (milliseconds) =>
+        window.dispatchEvent(
+          new CustomEvent("waypoint:frame", { detail: milliseconds }),
+        );
     controllerRef.current = controller;
     const disconnect = connectDrawingState();
+    let hydrated = false;
+    let disposed = false;
     const offStore = useAppStore.subscribe((state) =>
-      controller.updateState(state.drawing, state.ready),
+      controller.updateState(state.drawing, state.ready && hydrated),
     );
-    controller.updateState(
-      useAppStore.getState().drawing,
-      useAppStore.getState().ready,
-    );
+    let saving = false;
+    let dirty = false;
+    const save = () => {
+      dirty = true;
+      if (saving) return;
+      saving = true;
+      void (async () => {
+        try {
+          while (dirty && !disposed) {
+            dirty = false;
+            await commands.saveOverlaySession(controller.history.snapshot());
+          }
+        } catch (error) {
+          if (!disposed) useAppStore.getState().reportError(error);
+        } finally {
+          saving = false;
+        }
+      })();
+    };
+    controller.history.onChange = save;
+    void commands
+      .getOverlaySession()
+      .then((snapshot) => {
+        if (disposed) return;
+        if (snapshot) controller.history.restore(snapshot);
+        hydrated = true;
+        const state = useAppStore.getState();
+        controller.updateState(state.drawing, state.ready);
+        controller.resize();
+      })
+      .catch((error) => useAppStore.getState().reportError(error));
+    controller.updateState(useAppStore.getState().drawing, false);
     const listeners = [
       on("annotations:clear", controller.clear),
       on("annotations:undo", controller.undo),
@@ -59,6 +94,8 @@ function Overlay() {
     };
     watchDpr();
     return () => {
+      disposed = true;
+      controller.history.onChange = null;
       disconnect();
       offStore();
       controller.dispose();

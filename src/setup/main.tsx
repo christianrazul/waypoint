@@ -17,6 +17,7 @@ function SetupWindow() {
     try {
       if (document.activeElement instanceof HTMLElement)
         document.activeElement.blur();
+      await commands.recordShortcut(false);
       if (!(await flushEdits())) {
         await commands.openSetup();
         return;

@@ -26,6 +26,7 @@
     "allow-get-agenda-state",
     "allow-toggle-sticky",
     "allow-open-setup",
-    "allow-request-setup-close"
+    "allow-request-setup-close",
+    "allow-get-shortcuts"
   ]
 }

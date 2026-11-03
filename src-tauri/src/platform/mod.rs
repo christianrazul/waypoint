@@ -13,7 +13,7 @@ mod windows;
 #[cfg(target_os = "windows")]
 use windows as imp;
 
-/// Window level for the overlay. Floating windows (hotbar, sticky, test panel) always sit one
+/// Window level for the overlay. Floating windows (hotbar, sticky) always sit one
 /// level above it so they stay clickable while the overlay is armed.
 ///
 /// macOS maps these to NSWindowLevel values. Windows only has "topmost", so all levels
@@ -72,7 +72,7 @@ pub fn configure_overlay(window: &tauri::WebviewWindow, level: Level) -> tauri::
     imp::configure_overlay(window, level)
 }
 
-/// Same as the overlay, but sits one level higher. Used for the hotbar, sticky and test panel.
+/// Same as the overlay, but sits one level higher. Used for the hotbar and sticky.
 pub fn configure_floating(window: &tauri::WebviewWindow, level: Level) -> tauri::Result<()> {
     imp::configure_floating(window, level)
 }
@@ -110,4 +110,14 @@ pub fn focus_setup(window: &tauri::WebviewWindow, remember: bool) -> Result<(), 
 }
 pub fn release_setup(window: &tauri::WebviewWindow) -> Result<(), String> {
     imp::release_setup(window)
+}
+
+pub fn watch_displays(app: &tauri::AppHandle) -> tauri::Result<()> {
+    imp::watch_displays(app)
+}
+pub fn stop_display_watch() {
+    imp::stop_display_watch();
+}
+pub fn forget_overlay(app: &tauri::AppHandle, label: &str) {
+    imp::forget_overlay(app, label);
 }

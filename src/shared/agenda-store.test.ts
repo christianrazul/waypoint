@@ -89,6 +89,6 @@ it("unsubscribes and ignores a read that resolves after teardown", async () => {
   disconnect();
   resolve(fresh());
   await Promise.resolve();
-  expect(ipc.off).toHaveBeenCalledTimes(2);
+  expect(ipc.off).toHaveBeenCalledTimes(3);
   expect(useAgendaStore.getState().ready).toBe(false);
 });

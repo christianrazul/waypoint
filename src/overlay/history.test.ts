@@ -70,3 +70,20 @@ it("drops redo only after a real edit and treats empty actions as no-ops", () =>
   history.undo();
   expect(history.annotations).toEqual([]);
 });
+
+it("keeps display histories independent and restores disconnected sessions with redo", () => {
+  const first = new AnnotationHistory();
+  const second = new AnnotationHistory();
+  first.add(object("display-one"));
+  second.add(object("display-two"));
+  first.undo();
+  const cached = JSON.parse(JSON.stringify(first.snapshot()));
+  const reconnected = new AnnotationHistory();
+  reconnected.restore(cached);
+  reconnected.redo();
+  expect(reconnected.annotations.map(({ id }) => id)).toEqual(["display-one"]);
+  reconnected.clear();
+  expect(second.annotations.map(({ id }) => id)).toEqual(["display-two"]);
+  reconnected.undo();
+  expect(reconnected.annotations.map(({ id }) => id)).toEqual(["display-one"]);
+});

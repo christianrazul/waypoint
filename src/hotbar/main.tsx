@@ -1,3 +1,8 @@
+import {
+  useShortcuts,
+  useShortcutStore,
+  formatShortcut,
+} from "../shared/shortcuts";
 import { connectSetupDismissal } from "../shared/setup-dismissal";
 import {
   StrictMode,
@@ -36,6 +41,7 @@ const TOOLS: { tool: Tool; label: string; icon?: IconName }[] = [
 ];
 
 function Hotbar() {
+  const { snapshot: shortcuts, error: shortcutError } = useShortcuts();
   useEffect(connectSetupDismissal, []);
   const { drawing, ready, error: drawingError } = useAppStore();
   const {
@@ -43,7 +49,7 @@ function Hotbar() {
     ready: agendaReady,
     error: agendaError,
   } = useAgendaStore();
-  const error = drawingError ?? agendaError;
+  const error = drawingError ?? agendaError ?? shortcutError ?? shortcuts.error;
   const [features, setFeatures] = useState<Features>({
     nativeEyedropper: false,
     webEyedropper: false,
@@ -196,7 +202,7 @@ function Hotbar() {
           className="sticky-button"
           aria-label="Waypoint sticky"
           aria-pressed={agenda?.settings.enabled ?? false}
-          title="Toggle agenda sticky (Ctrl+Option+S) · Alt-click to set up"
+          title={`Toggle agenda sticky (${formatShortcut(shortcuts.bindings.toggleSticky)}) · Alt-click to set up`}
           disabled={!agendaReady || busy}
           onClick={(event) => {
             if (event.altKey)
@@ -253,6 +259,10 @@ function Hotbar() {
             onClick={() => {
               useAppStore.setState({ error: null });
               useAgendaStore.setState({ error: null });
+              useShortcutStore.setState((current) => ({
+                error: null,
+                snapshot: { ...current.snapshot, error: null },
+              }));
             }}
           >
             <Icon name="close" />

@@ -1,4 +1,5 @@
 mod agenda;
+mod displays;
 mod editing;
 mod platform;
 mod setup;
@@ -8,7 +9,7 @@ mod windows;
 
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, RunEvent, State};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
 pub const APP_NAME: &str = "Waypoint";
 
@@ -72,12 +73,22 @@ fn select_tool(app: AppHandle, tool: Tool) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn begin_text_edit(app: AppHandle) -> Result<(), String> {
-    windows::begin_text_edit(&app)
+fn begin_text_edit(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), String> {
+    windows::begin_text_edit(&app, window.label())
 }
 
 #[tauri::command]
-fn end_text_edit(app: AppHandle) -> Result<(), String> {
+fn end_text_edit(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), String> {
+    if app
+        .state::<displays::Displays>()
+        .text_owner
+        .lock()
+        .unwrap()
+        .as_deref()
+        != Some(window.label())
+    {
+        return Ok(());
+    }
     windows::end_text_edit(&app)
 }
 
@@ -137,8 +148,7 @@ fn set_color(app: AppHandle, state: State<'_, AppState>, color: String) -> Resul
 
 #[tauri::command]
 fn clear_annotations(app: AppHandle) -> Result<(), String> {
-    windows::end_text_edit(&app)?;
-    app.emit("annotations:clear", ()).map_err(|e| e.to_string())
+    displays::history_action(&app, "annotations:clear")
 }
 
 #[tauri::command]
@@ -205,6 +215,40 @@ fn start_sticky_drag(app: AppHandle) -> Result<(), String> {
     windows::start_sticky_drag(&app)
 }
 
+#[tauri::command]
+fn get_overlay_session(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<Option<serde_json::Value>, String> {
+    displays::session(&app, window.label(), None)
+}
+#[tauri::command]
+fn save_overlay_session(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    snapshot: serde_json::Value,
+) -> Result<(), String> {
+    displays::session(&app, window.label(), Some(snapshot)).map(|_| ())
+}
+
+#[tauri::command]
+fn get_shortcuts(app: AppHandle) -> shortcuts::Snapshot {
+    shortcuts::get(&app)
+}
+#[tauri::command]
+fn set_shortcut(
+    app: AppHandle,
+    action: shortcuts::Action,
+    binding: String,
+) -> Result<shortcuts::Snapshot, String> {
+    shortcuts::update(&app, action, binding)
+}
+
+#[tauri::command]
+fn record_shortcut(app: AppHandle, active: bool) -> Result<(), String> {
+    shortcuts::record(&app, active)
+}
+
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -214,9 +258,15 @@ pub fn run() {
 
     builder
         .manage(AppState::default())
+        .manage(displays::Displays::default())
         .manage(windows::StickyLayout::default())
         .manage(setup::SetupState::default())
         .invoke_handler(tauri::generate_handler![
+            record_shortcut,
+            get_shortcuts,
+            set_shortcut,
+            get_overlay_session,
+            save_overlay_session,
             get_drawing_state,
             select_tool,
             begin_text_edit,
@@ -244,16 +294,20 @@ pub fn run() {
             platform::init_app(app);
             let handle = app.handle();
             agenda::init(handle)?;
-            windows::create_overlay(handle)?;
+            displays::reconcile(handle).map_err(std::io::Error::other)?;
             windows::create_hotbar(handle)?;
             windows::create_sticky(handle)?;
-            setup::create(handle)?;
+            shortcuts::init(handle).map_err(std::io::Error::other)?;
+            platform::watch_displays(handle)?;
             tray::create(handle)?;
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("error while building Waypoint")
         .run(|_app, event| {
+            if matches!(event, RunEvent::Exit) {
+                platform::stop_display_watch();
+            }
             if let RunEvent::ExitRequested {
                 code: None, api, ..
             } = event

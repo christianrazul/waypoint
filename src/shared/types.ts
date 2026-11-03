@@ -95,4 +95,13 @@ export type AgendaEdit =
   | { type: "style"; style: StickySettings["style"] }
   | { type: "opacity"; opacity: number }
   | { type: "corner"; corner: StickySettings["corner"] }
+  | { type: "display"; display: StickySettings["display"] }
   | { type: "compact"; compact: boolean };
+
+export type ShortcutAction =
+  "next" | "previous" | "toggleDrawing" | "clear" | "toggleSticky";
+export interface ShortcutSnapshot {
+  bindings: Record<ShortcutAction, string>;
+  error: string | null;
+  revision: number;
+}

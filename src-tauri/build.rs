@@ -3,6 +3,11 @@ fn main() {
     // and deny them by default, so each window gets only what its capability file grants.
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "record_shortcut",
+            "get_shortcuts",
+            "set_shortcut",
+            "get_overlay_session",
+            "save_overlay_session",
             "get_drawing_state",
             "select_tool",
             "begin_text_edit",

@@ -260,3 +260,42 @@ pub fn sample_color(app: &tauri::AppHandle) -> Result<(), String> {
 pub fn sample_color(_app: &tauri::AppHandle) -> Result<(), String> {
     Err("Native color sampling is disabled until focus behavior is verified".into())
 }
+
+thread_local! {
+    static SCREEN_OBSERVER: std::cell::RefCell<Option<objc2::rc::Retained<objc2::runtime::ProtocolObject<dyn objc2_foundation::NSObjectProtocol>>>> = const { std::cell::RefCell::new(None) };
+}
+pub fn watch_displays(app: &tauri::AppHandle) -> tauri::Result<()> {
+    use objc2_foundation::NSNotificationCenter;
+    let handle = app.clone();
+    let callback = block2::RcBlock::new(
+        move |_notification: std::ptr::NonNull<objc2_foundation::NSNotification>| {
+            crate::displays::request_refresh(&handle);
+        },
+    );
+    let observer = unsafe {
+        NSNotificationCenter::defaultCenter().addObserverForName_object_queue_usingBlock(
+            Some(objc2_app_kit::NSApplicationDidChangeScreenParametersNotification),
+            None,
+            None,
+            &callback,
+        )
+    };
+    SCREEN_OBSERVER.with(|slot| *slot.borrow_mut() = Some(observer));
+    Ok(())
+}
+pub fn stop_display_watch() {
+    SCREEN_OBSERVER.with(|slot| {
+        if let Some(observer) = slot.borrow_mut().take() {
+            unsafe {
+                objc2_foundation::NSNotificationCenter::defaultCenter().removeObserver(AsRef::<
+                    objc2::runtime::AnyObject,
+                >::as_ref(
+                    &*observer,
+                ));
+            }
+        }
+    });
+}
+pub fn forget_overlay(app: &tauri::AppHandle, label: &str) {
+    app.remove_webview_panel(label);
+}

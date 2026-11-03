@@ -4,21 +4,27 @@ Screen annotation and agenda sticky for presenters. Tauri 2 + React 18.
 
 ## Status
 
-M4 implementation: sticky setup adds section and checklist editing, Frosted/Clear/Paper
-styles, live opacity, four corner presets, dragging, and compact mode. The agenda,
-appearance, visibility, and custom placement persist across restarts. The macOS eyedropper
-remains behind its M2 feature flag; multi-display selection and Windows validation are M5.
+M5 implementation is ready for validation: overlays per display, native display-change
+notifications, Primary / Cursor placement, configurable shortcuts, and release packaging.
+Annotations and history stay in memory per display, including completed-session restoration
+after reconnecting a display. The macOS eyedropper remains behind its M2 feature flag.
+
+M5 is **not accepted yet**: Windows slideshow behavior and physical monitor hot-plug need
+manual review; native Retina latency remains unverified, and the measured total memory
+footprint exceeds the 150 MB target. See [M5 verification](docs/m5-verification.md) for the
+results and outstanding checks. [Packaging notes](docs/packaging.md) cover installers,
+Developer ID signing, notarization, and distribution limitations.
 
 The [v1 roadmap](https://github.com/christianrazul/waypoint/issues/1) and
-[M4 specification](https://github.com/christianrazul/waypoint/issues/6) define the current scope.
-See [M4 verification](docs/m4-verification.md) for checks, derived colors, and native acceptance.
-[M3](docs/m3-verification.md), [M2](docs/m2-verification.md), and
-[M1 verification](docs/m1-verification.md) record the previous milestones.
+[M5 specification](https://github.com/christianrazul/waypoint/issues/7) define the scope.
+Previous checks: [M4](docs/m4-verification.md), [M3](docs/m3-verification.md),
+[M2](docs/m2-verification.md), and [M1](docs/m1-verification.md).
 
 ## Requirements
 
-- macOS 13+ (Windows 10/11 validation lands in M5)
-- Rust 1.80+ (M0 tested with 1.98.1), Node 20+ (tested with 24.13), pnpm 10
+- macOS 13+, or Windows 10/11 with WebView2
+- macOS: Xcode Command Line Tools. Windows builds: Visual Studio C++ Build Tools + Windows SDK.
+- Rust 1.80+ (M0 tested with 1.98.1), Node 20+ (local 24.14.1; CI pins 24.13.0), pnpm 10
 
 ## Run and check
 
@@ -34,9 +40,15 @@ cargo clippy --locked --manifest-path src-tauri/Cargo.toml --all-features -- -D 
 There is no Dock icon. Use the pen-nib icon in the menu bar:
 
 - Left click: show or hide the hotbar. Hiding also turns drawing off.
-- Right click: hotbar, click-through, window-level debugging, undo/redo, clear, and quit.
+- Right click: hotbar, sticky setup/visibility, click-through, window-level debugging, undo/redo, clear, and quit.
 - Click a tool to arm it; re-click the active tool to return to pass-through.
 - Ctrl+Option+D: toggle drawing / pass-through, even with the hotbar hidden.
+- Ctrl+Option+C: clear annotations on the display under the cursor.
+- On Windows, use Ctrl+Alt in place of Ctrl+Option. These five global actions can be changed
+  in setup: Next, Previous, Toggle drawing, Clear, and Toggle sticky. Click a binding and press
+  the new key combination; Esc cancels recording. Duplicate/reserved/in-use keys show an error
+  and keep the previous binding. Startup conflicts leave the app usable and appear in setup
+  and the hotbar error message. Global action keys pause while recording a replacement.
 - Sticky button, tray check item, or Ctrl+Option+S: show/hide the agenda sticky independently.
 - Tray "Waypoint sticky setup" or Alt-click Sticky: open setup. Text saves on blur/Enter;
   detail lines support newlines and Ctrl/Cmd+Enter to finish. Other controls save immediately.
@@ -44,6 +56,9 @@ There is no Dock icon. Use the pen-nib icon in the menu bar:
   keeps the editor open. Drawing input and annotation shortcuts pause while setup is open.
 - Drag section grips to reorder, or use Move up/down in the expanded editor. Reset checklist
   clears all checks without changing the current section.
+- Display selects Primary or Display at cursor. Cursor mode chooses when controls are shown,
+  settings change, or a global action is invoked; the controls do not continuously follow mouse
+  movement. Setup follows the same display. A disconnected target falls back to an available display.
 - Drag the sticky header to place it freely. A corner preset resets custom placement for the
   current display; content resizing preserves the selected top or bottom anchor.
 - Clear starts at 35% fill opacity, Frosted at 72%; reselecting the active style keeps its value.
@@ -53,7 +68,8 @@ There is no Dock icon. Use the pen-nib icon in the menu bar:
   advances the agenda automatically. Prev/Next stop at the ends.
 - Esc: return to pass-through. While typing, Esc commits text instead; press it again to disarm.
 - Cmd+Z / Shift+Cmd+Z on macOS, Ctrl+Z / Shift+Ctrl+Z on Windows: undo / redo annotations.
-  These shortcuts are global only while armed and are released during text editing or sampling.
+  These shortcuts target the display under the cursor, are global only while armed, and are
+  released during text editing, sampling, and setup. Text fields keep their normal text undo.
 - Shift-drag: constrain arrows to 45-degree steps, rectangles to squares, ellipses to circles.
 - Text: click to place, type, and commit with Enter, Esc, or a click outside. Empty text is discarded.
   Inter 600 at 22px; keyboard focus is borrowed only while typing and returned on commit.
@@ -69,7 +85,8 @@ fill; there is no native blur. Clear suits light slides; Paper uses a solid yell
 the hotbar leaves the sticky visible.
 
 Changing colors does not arm drawing or recolor existing annotations. Strokes and history stay in memory during pass-through and after hiding
-the hotbar; they disappear on quit. Inter fonts ship locally; no runtime network is needed.
+the hotbar. Completed annotations and history survive display reconnects during the same run;
+they disappear on quit. In-progress gestures are not a saved session. Inter fonts ship locally; no runtime network is needed.
 
 ## Architecture
 
@@ -77,8 +94,11 @@ the hotbar; they disappear on quit. Inter fonts ship locally; no runtime network
   macOS uses separate overlay, never-key floating, and keyboard-capable setup panel classes.
   The overlay borrows focus only while typing; setup borrows it while editing. Focus restoration avoids activating an old app after a user switches
   to a different one.
+- `src-tauri/src/displays.rs`: stable overlay registry, display-scoped history dispatch and
+  in-memory session cache, platform-specific display placement, and topology reconciliation. macOS uses
+  the screen-parameters notification; Windows uses display/settings/DPI messages. No display poll.
 - `src-tauri/src/{windows,tray,shortcuts}.rs`: window lifecycle, text/sampling transitions,
-  menu bar, and global shortcuts. Annotation shortcut changes roll back on registration failure.
+  menu bar, and global shortcuts. Shortcut replacement registers the new key before releasing the old and rolls back if saving fails.
 - `src-tauri/src/{editing,setup}.rs`: field-level agenda edits and the keyboard-capable setup
   panel. Close requests flush frontend drafts before hiding and returning focus; switching to
   another app does not reactivate an older app.
@@ -87,7 +107,7 @@ the hotbar; they disappear on quit. Inter fonts ship locally; no runtime network
   interested webviews re-read after `agenda:changed` / `sticky:toggle` events.
 - `src-tauri/src/lib.rs`: commands and authoritative drawing state. Revisioned snapshots prevent
   late initialization or reordered events from reverting tool, color, editing, or sampling state.
-- `src-tauri/capabilities/*.json`: least-privilege capability per window. Only the overlay and setup can
+- `src-tauri/capabilities/*.json`: least-privilege capability per window, including `overlay-*`. Only the overlay and setup can
   acquire text focus; only the hotbar can select tools or initiate sampling.
 - `src/overlay/{controller,history,geometry,render}.ts`: pointer gestures, object-change commands,
   constraints/hit-testing, and rendering. Completed paths and eraser outlines are cached;
@@ -99,16 +119,48 @@ the hotbar; they disappear on quit. Inter fonts ship locally; no runtime network
   a Zustand store per webview, and typed commands/events; `agenda-store.ts` synchronizes agenda state.
 - `src/shared/tokens.css`, `src/shared/fonts`: design values and bundled Inter weights.
 
-Hotbar positions use tauri-plugin-store (`settings.json` in the app data directory), keyed
-by display name, physical resolution, and display origin. Restored positions are clamped
-inside the primary display. Sticky custom offsets use `sticky-position:` keys for the same
-display identity, measured from the selected corner; presets clear that display's override.
-Multiple overlays, display selection, and hot-plug are M5.
+Agenda, settings, shortcuts, and placement use tauri-plugin-store (`settings.json` in the app
+data directory). Hotbar/sticky positions use display identity and local offsets, so moving a
+display's desktop origin does not rewrite the saved placement. Legacy M1–M4 keys are read
+and migrated without removing agenda data. Restored positions clamp to the current display.
+Display identities use the monitor name exposed by the OS; duplicate names fall back to
+position-qualified identities, which can change after rearranging those ambiguous displays.
+
+## Install and build
+
+Use the generated DMG to copy Waypoint into Applications, or run the Windows NSIS installer.
+There is no Dock/taskbar window: use the tray/menu bar icon. Existing settings are retained
+when replacing the app. Current local artifacts have no trusted publisher notarization/signature;
+see [packaging](docs/packaging.md) before distributing them.
+
+```bash
+./scripts/package-macos.sh
+# On Windows:
+pnpm tauri build --bundles nsis
+```
+
+## Permissions and limitations
+
+- Drawing overlays do not capture the screen and normally need no Screen Recording permission.
+  Global key conflicts depend on OS reservations and other apps. Sampling is optional; Windows
+  EyeDropper availability and its system UI are checked at runtime.
+- Keep Keynote's "Allow Mission Control, Dashboard and others to use the screen" option enabled
+  when presenting with auxiliary overlays. Recheck full-screen focus using the acceptance list.
+- Frosted is translucent paint, without native blur. Clear is intended for light slides.
+- The horizontal hotbar retains its fixed design width (794 logical pixels on default macOS,
+  844 on Windows); very narrow/portrait displays can clip it. Sticky/setup also use fixed widths.
+- In-memory history/reconnect snapshots grow with edits. Clear is undoable and does not
+  purge history; quitting resets it. Large sessions add memory and snapshot serialization work.
+- Hardware display changes, Windows slideshow focus, Retina latency, and the memory target
+  are not declared passed by automated unit tests or the browser preview.
 
 ## Browser preview
 
 Run `pnpm dev`, then open [the drawing preview](http://127.0.0.1:1420/dev/preview.html).
 It uses the actual hotbar, overlay, sticky, and setup components with mocked IPC. Preview agenda state
-persists in browser localStorage; "Reset agenda" resets that preview only. The slide diagram and
+persists in browser localStorage; the Second display checkbox exercises independent canvas
+sessions and reconnects with mocked IPC. A development-only output reports pointer-event to
+canvas-submit timing; it does not measure OS/compositor/physical pen latency.
+"Reset agenda" resets that preview only. The slide diagram and
 Undo/Redo/Clear controls are development-only; the preview does not test native focus or
 OS shortcut registration and is excluded from the production build entries.

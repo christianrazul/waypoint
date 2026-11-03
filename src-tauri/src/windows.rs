@@ -10,7 +10,6 @@ use tauri::{
 };
 use tauri_plugin_store::StoreExt;
 
-pub const OVERLAY: &str = "overlay";
 pub const HOTBAR: &str = "hotbar";
 pub const STICKY: &str = "sticky";
 pub const FLOATING: &[&str] = &[HOTBAR, STICKY];
@@ -57,7 +56,7 @@ fn base_builder<'a>(
         .visible(false)
 }
 
-fn monitor_key(monitor: &Monitor) -> String {
+fn legacy_monitor_key(monitor: &Monitor) -> String {
     format!(
         "hotbar:{}:{}x{}:{}:{}",
         monitor.name().map(String::as_str).unwrap_or("display"),
@@ -70,29 +69,32 @@ fn monitor_key(monitor: &Monitor) -> String {
 
 fn frame(monitor: &Monitor) -> (f64, f64, f64, f64) {
     let scale = monitor.scale_factor();
-    let pos = monitor.position().to_logical::<f64>(scale);
     let size = monitor.size().to_logical::<f64>(scale);
-    (pos.x, pos.y, size.width, size.height)
+    (0.0, 0.0, size.width, size.height)
 }
 
-pub fn create_overlay(app: &AppHandle) -> tauri::Result<WebviewWindow> {
-    let monitor = app.primary_monitor()?.ok_or(tauri::Error::WindowNotFound)?;
-    let (x, y, width, height) = frame(&monitor);
+pub fn create_overlay(
+    app: &AppHandle,
+    label: &str,
+    monitor: &Monitor,
+) -> tauri::Result<WebviewWindow> {
+    let (_, _, width, height) = frame(monitor);
     let level = *app.state::<AppState>().level.lock().unwrap();
-    let window = base_builder(app, OVERLAY, "overlay.html")
-        .position(x, y)
+    let window = base_builder(app, label, "overlay.html")
         .inner_size(width, height)
         .build()?;
+    crate::displays::fit_overlay(&window, monitor)?;
     platform::configure_overlay(&window, level)?;
     let handle = app.clone();
+    let owner = label.to_owned();
     window.on_window_event(move |event| {
         if matches!(event, WindowEvent::Focused(false)) {
-            if let Err(error) = handle.emit("text:commit", ()) {
+            if let Err(error) = handle.emit_to(&owner, "text:commit", ()) {
                 eprintln!("[text] {error}");
             }
         }
     });
-    window.set_ignore_cursor_events(true)?;
+    window.set_ignore_cursor_events(!crate::displays::current_capture(app))?;
     platform::show_without_focus(&window)?;
     Ok(window)
 }
@@ -105,7 +107,8 @@ pub fn create_hotbar(app: &AppHandle) -> Result<WebviewWindow, Box<dyn std::erro
         .auto_save(std::time::Duration::from_millis(300))
         .build()?;
     let saved = store
-        .get(monitor_key(&monitor))
+        .get(monitor_key(app, &monitor))
+        .or_else(|| store.get(legacy_monitor_key(&monitor)))
         .and_then(|v| serde_json::from_value::<Position>(v).ok());
     let default = Position {
         x: x + width - 190.0 - (WIDTH - MARGIN),
@@ -131,15 +134,24 @@ pub fn create_hotbar(app: &AppHandle) -> Result<WebviewWindow, Box<dyn std::erro
     let moved_window = window.clone();
     window.on_window_event(move |event| {
         if let WindowEvent::Moved(position) = event {
+            if moved_window.outer_position().ok().as_ref() != Some(position)
+                || app_is_placing(moved_window.app_handle())
+            {
+                return;
+            }
             if let Ok(Some(monitor)) = moved_window.current_monitor() {
-                let logical = position.to_logical::<f64>(monitor.scale_factor());
+                let logical = tauri::LogicalPosition::new(
+                    (position.x - monitor.position().x) as f64 / monitor.scale_factor(),
+                    (position.y - monitor.position().y) as f64 / monitor.scale_factor(),
+                );
                 store.set(
-                    monitor_key(&monitor),
+                    monitor_key(moved_window.app_handle(), &monitor),
                     serde_json::json!({"x": logical.x, "y": logical.y}),
                 );
             }
         }
     });
+    place_hotbar(app).map_err(std::io::Error::other)?;
     platform::show_without_focus(&window)?;
     Ok(window)
 }
@@ -151,14 +163,18 @@ pub fn set_picker_open(app: &AppHandle, open: bool) -> tauri::Result<()> {
         if open {
             if let Some(monitor) = window.current_monitor()? {
                 let (_, y, _, h) = frame(&monitor);
-                let pos = window
-                    .outer_position()?
-                    .to_logical::<f64>(monitor.scale_factor());
+                let physical = window.outer_position()?;
+                let pos = tauri::LogicalPosition::new(
+                    (physical.x - monitor.position().x) as f64 / monitor.scale_factor(),
+                    (physical.y - monitor.position().y) as f64 / monitor.scale_factor(),
+                );
                 if pos.y + height > y + h {
-                    window.set_position(tauri::LogicalPosition::new(
-                        pos.x,
-                        (y + h - height).max(y),
-                    ))?;
+                    crate::displays::place(
+                        &window,
+                        &monitor,
+                        (pos.x, (y + h - height).max(y)),
+                        (WIDTH, height),
+                    )?;
                 }
             }
         }
@@ -180,6 +196,7 @@ pub fn toggle_hotbar(app: &AppHandle) -> Result<(), String> {
         if window.is_visible().map_err(|e| e.to_string())? {
             return hide_hotbar(app);
         }
+        crate::displays::invoke_display(app)?;
         platform::show_without_focus(&window).map_err(|e| e.to_string())?;
         tray_sync(app);
     }
@@ -207,13 +224,11 @@ fn set_mode(app: &AppHandle, tool: Tool, armed: bool) -> Result<(), String> {
     end_text_edit(app)?;
     let state = app.state::<AppState>();
     let current = state.drawing.lock().unwrap().clone();
-    let overlay = app
-        .get_webview_window(OVERLAY)
-        .ok_or("Annotation overlay is unavailable")?;
     shortcuts::set_annotation_shortcuts(app, armed)?;
-    if let Err(error) = overlay.set_ignore_cursor_events(!armed || crate::setup::is_open(app)) {
+    if let Err(error) = crate::displays::pointer_mode(app, armed && !crate::setup::is_open(app)) {
+        let _ = crate::displays::pointer_mode(app, current.armed && !crate::setup::is_open(app));
         let _ = shortcuts::set_annotation_shortcuts(app, current.armed);
-        return Err(error.to_string());
+        return Err(error);
     }
     let cursor = if !armed {
         tauri::CursorIcon::Default
@@ -222,8 +237,10 @@ fn set_mode(app: &AppHandle, tool: Tool, armed: bool) -> Result<(), String> {
     } else {
         tauri::CursorIcon::Crosshair
     };
-    if let Err(error) = overlay.set_cursor_icon(cursor) {
-        eprintln!("[cursor] {error}");
+    for overlay in crate::displays::overlays(app) {
+        if let Err(error) = overlay.set_cursor_icon(cursor) {
+            eprintln!("[cursor] {error}");
+        }
     }
     let snapshot = {
         let mut drawing = state.drawing.lock().unwrap();
@@ -242,23 +259,37 @@ pub fn toggle_click_through(app: &AppHandle) -> Result<(), String> {
     set_click_through(app, armed)
 }
 
-pub fn begin_text_edit(app: &AppHandle) -> Result<(), String> {
+pub fn begin_text_edit(app: &AppHandle, label: &str) -> Result<(), String> {
     let state = app.state::<AppState>();
     let current = state.drawing.lock().unwrap().clone();
     if current.editing {
-        return Ok(());
+        if app
+            .state::<crate::displays::Displays>()
+            .text_owner
+            .lock()
+            .unwrap()
+            .as_deref()
+            == Some(label)
+        {
+            return Ok(());
+        }
+        end_text_edit(app)?;
     }
     if !current.armed || current.tool != Tool::Text || current.sampling {
         return Err("Select the text tool before typing".into());
     }
     let overlay = app
-        .get_webview_window(OVERLAY)
+        .get_webview_window(label)
         .ok_or("Annotation overlay is unavailable")?;
     shortcuts::set_annotation_shortcuts(app, false)?;
     if let Err(error) = platform::begin_text_edit(&overlay) {
         let _ = shortcuts::set_annotation_shortcuts(app, true);
         return Err(error);
     }
+    *app.state::<crate::displays::Displays>()
+        .text_owner
+        .lock()
+        .unwrap() = Some(label.to_owned());
     let snapshot = {
         let mut drawing = state.drawing.lock().unwrap();
         drawing.editing = true;
@@ -280,7 +311,17 @@ pub fn end_text_edit(app: &AppHandle) -> Result<(), String> {
         drawing.revision += 1;
         drawing.clone()
     };
-    let focus_result = if let Some(overlay) = app.get_webview_window(OVERLAY) {
+    let owner = app
+        .state::<crate::displays::Displays>()
+        .text_owner
+        .lock()
+        .unwrap()
+        .take();
+    if let Some(label) = &owner {
+        let _ = app.emit_to(label, "text:commit", ());
+    }
+    let focus_result = if let Some(overlay) = owner.and_then(|label| app.get_webview_window(&label))
+    {
         platform::end_text_edit(&overlay)
     } else {
         Err("Annotation overlay is unavailable".into())
@@ -288,7 +329,7 @@ pub fn end_text_edit(app: &AppHandle) -> Result<(), String> {
     let shortcut_result =
         shortcuts::set_annotation_shortcuts(app, snapshot.armed && !snapshot.sampling);
     let snapshot = if shortcut_result.is_err() {
-        if let Some(overlay) = app.get_webview_window(OVERLAY) {
+        for overlay in crate::displays::overlays(app) {
             if let Err(error) = overlay.set_ignore_cursor_events(true) {
                 eprintln!("[text] pass-through recovery: {error}");
             }
@@ -314,13 +355,10 @@ pub fn begin_sampling(app: &AppHandle) -> Result<(), String> {
     if current.sampling {
         return Err("A color sampling session is already open".into());
     }
-    let overlay = app
-        .get_webview_window(OVERLAY)
-        .ok_or("Annotation overlay is unavailable")?;
     shortcuts::set_annotation_shortcuts(app, false)?;
-    if let Err(error) = overlay.set_ignore_cursor_events(true) {
+    if let Err(error) = crate::displays::pointer_mode(app, false) {
         let _ = shortcuts::set_annotation_shortcuts(app, current.armed);
-        return Err(error.to_string());
+        return Err(error);
     }
     let snapshot = {
         let mut drawing = state.drawing.lock().unwrap();
@@ -340,14 +378,7 @@ pub fn finish_sampling(app: &AppHandle, color: Option<String>) -> Result<(), Str
     }
     let shortcuts_result = shortcuts::set_annotation_shortcuts(app, current.armed);
     let mut armed = current.armed && shortcuts_result.is_ok();
-    let overlay_result = app
-        .get_webview_window(OVERLAY)
-        .ok_or_else(|| "Annotation overlay is unavailable".to_owned())
-        .and_then(|overlay| {
-            overlay
-                .set_ignore_cursor_events(!armed)
-                .map_err(|e| e.to_string())
-        });
+    let overlay_result = crate::displays::pointer_mode(app, armed && !crate::setup::is_open(app));
     if overlay_result.is_err() {
         armed = false;
         let _ = shortcuts::set_annotation_shortcuts(app, false);
@@ -370,7 +401,16 @@ pub fn finish_sampling(app: &AppHandle, color: Option<String>) -> Result<(), Str
 
 pub fn set_level(app: &AppHandle, level: platform::Level) -> tauri::Result<()> {
     *app.state::<AppState>().level.lock().unwrap() = level;
-    platform::apply_level(app, &[OVERLAY], FLOATING, level);
+    let labels: Vec<String> = crate::displays::overlays(app)
+        .iter()
+        .map(|w| w.label().to_owned())
+        .collect();
+    platform::apply_level(
+        app,
+        &labels.iter().map(String::as_str).collect::<Vec<_>>(),
+        FLOATING,
+        level,
+    );
     tray_sync(app);
     Ok(())
 }
@@ -414,7 +454,7 @@ fn sticky_frame(
 }
 
 pub fn create_sticky(app: &AppHandle) -> tauri::Result<WebviewWindow> {
-    let monitor = app.primary_monitor()?.ok_or(tauri::Error::WindowNotFound)?;
+    let monitor = crate::displays::selected(app).map_err(std::io::Error::other)?;
     let initial = sticky_frame(frame(&monitor), agenda::Corner::Bl, 320.0);
     let level = *app.state::<AppState>().level.lock().unwrap();
     let window = base_builder(app, STICKY, "sticky.html")
@@ -447,10 +487,7 @@ pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
     let window = app
         .get_webview_window(STICKY)
         .ok_or("The sticky window is unavailable")?;
-    let monitor = app
-        .primary_monitor()
-        .map_err(|error| error.to_string())?
-        .ok_or("Primary display is unavailable")?;
+    let monitor = crate::displays::selected(app)?;
     app.state::<StickyLayout>()
         .dragging
         .store(false, Ordering::SeqCst);
@@ -459,17 +496,27 @@ pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
         .store(agenda::SETTINGS_FILE)
         .map_err(|e| e.to_string())?;
     if let Some(offset) = store
-        .get(sticky_position_key(&monitor))
+        .get(sticky_position_key(app, &monitor))
+        .or_else(|| {
+            store.get(legacy_monitor_key(&monitor).replacen("hotbar:", "sticky-position:", 1))
+        })
         .and_then(|v| serde_json::from_value::<Position>(v).ok())
     {
+        if !store.has(sticky_position_key(app, &monitor)) {
+            store.set(
+                sticky_position_key(app, &monitor),
+                serde_json::to_value(&offset).map_err(|e| e.to_string())?,
+            );
+        }
         apply_custom_offset(&mut bounds, frame(&monitor), state.settings.corner, offset);
     }
-    window
-        .set_size(LogicalSize::new(bounds.width, bounds.height))
-        .map_err(|error| error.to_string())?;
-    window
-        .set_position(tauri::LogicalPosition::new(bounds.x, bounds.y))
-        .map_err(|error| error.to_string())?;
+    crate::displays::place(
+        &window,
+        &monitor,
+        (bounds.x, bounds.y),
+        (bounds.width, bounds.height),
+    )
+    .map_err(|e| e.to_string())?;
     *app.state::<StickyLayout>()
         .height
         .lock()
@@ -478,8 +525,12 @@ pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
     Ok(bounds.max_content_height)
 }
 
-fn sticky_position_key(monitor: &Monitor) -> String {
-    monitor_key(monitor).replacen("hotbar:", "sticky-position:", 1)
+fn monitor_key(app: &AppHandle, monitor: &Monitor) -> String {
+    format!("hotbar:v2:{}", crate::displays::monitor_id(app, monitor))
+}
+
+fn sticky_position_key(app: &AppHandle, monitor: &Monitor) -> String {
+    monitor_key(app, monitor).replacen("hotbar:", "sticky-position:", 1)
 }
 
 fn apply_custom_offset(
@@ -510,11 +561,11 @@ fn remember_sticky_position(
     app: &AppHandle,
     position: &tauri::PhysicalPosition<i32>,
 ) -> Result<(), String> {
-    let monitor = app
-        .primary_monitor()
-        .map_err(|e| e.to_string())?
-        .ok_or("Primary display is unavailable")?;
-    let position = position.to_logical::<f64>(monitor.scale_factor());
+    let monitor = crate::displays::selected(app)?;
+    let position = tauri::LogicalPosition::new(
+        (position.x - monitor.position().x) as f64 / monitor.scale_factor(),
+        (position.y - monitor.position().y) as f64 / monitor.scale_factor(),
+    );
     let state = agenda::get(app)?;
     let height = app
         .state::<StickyLayout>()
@@ -546,7 +597,7 @@ fn remember_sticky_position(
     app.store(agenda::SETTINGS_FILE)
         .map_err(|e| e.to_string())?
         .set(
-            sticky_position_key(&monitor),
+            sticky_position_key(app, &monitor),
             serde_json::to_value(offset).map_err(|e| e.to_string())?,
         );
     Ok(())
@@ -572,14 +623,12 @@ pub fn reset_sticky_position(app: &AppHandle) -> Result<(), String> {
     app.state::<StickyLayout>()
         .dragging
         .store(false, Ordering::SeqCst);
-    let monitor = app
-        .primary_monitor()
-        .map_err(|e| e.to_string())?
-        .ok_or("Primary display is unavailable")?;
+    let monitor = crate::displays::selected(app)?;
     let store = app
         .store(agenda::SETTINGS_FILE)
         .map_err(|e| e.to_string())?;
-    store.delete(sticky_position_key(&monitor));
+    store.set(sticky_position_key(app, &monitor), serde_json::Value::Null);
+    store.delete(legacy_monitor_key(&monitor).replacen("hotbar:", "sticky-position:", 1));
     store.save().map_err(|e| e.to_string())
 }
 
@@ -677,4 +726,55 @@ mod tests {
         assert!(bounds.y >= 0.0);
         assert_eq!(bounds.y + STICKY_MARGIN + bounds.content_height, 868.0);
     }
+}
+
+fn app_is_placing(app: &AppHandle) -> bool {
+    app.state::<crate::displays::Displays>()
+        .placing
+        .load(Ordering::SeqCst)
+}
+pub fn place_hotbar(app: &AppHandle) -> Result<(), String> {
+    let Some(window) = app.get_webview_window(HOTBAR) else {
+        return Ok(());
+    };
+    let monitor = crate::displays::selected(app)?;
+    let (_, _, width, height) = frame(&monitor);
+    let store = app
+        .store(agenda::SETTINGS_FILE)
+        .map_err(|e| e.to_string())?;
+    let mut saved = store
+        .get(monitor_key(app, &monitor))
+        .or_else(|| store.get(legacy_monitor_key(&monitor)))
+        .and_then(|v| serde_json::from_value::<Position>(v).ok())
+        .unwrap_or(Position {
+            x: width - 190.0 - (WIDTH - MARGIN),
+            y: 44.0 - MARGIN,
+        });
+    if !saved.x.is_finite() {
+        saved.x = 0.0;
+    }
+    if !saved.y.is_finite() {
+        saved.y = 0.0;
+    }
+    let size = window
+        .inner_size()
+        .map_err(|e| e.to_string())?
+        .to_logical::<f64>(window.scale_factor().map_err(|e| e.to_string())?);
+    let local = (
+        saved.x.clamp(0.0, (width - WIDTH).max(0.0)),
+        saved.y.clamp(0.0, (height - size.height).max(0.0)),
+    );
+    store.set(
+        monitor_key(app, &monitor),
+        serde_json::json!({"x": local.0, "y": local.1}),
+    );
+    app.state::<crate::displays::Displays>()
+        .placing
+        .store(true, Ordering::SeqCst);
+    let result = crate::displays::place(&window, &monitor, local, (WIDTH, size.height))
+        .map_err(|e| e.to_string());
+    app.state::<crate::displays::Displays>()
+        .placing
+        .store(false, Ordering::SeqCst);
+    result
 }

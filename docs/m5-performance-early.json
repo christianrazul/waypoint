@@ -1,0 +1,189 @@
+{
+  "measuredAt": "2026-11-03T07:24:08.881808+00:00",
+  "macOS": "27.0.1",
+  "hardware": "Apple M3",
+  "durationSeconds": 10.494,
+  "cpuSeconds": 0.29,
+  "averageCpuPercentOfOneCore": 2.764,
+  "rssBytesRange": [
+    184205312,
+    205225984
+  ],
+  "physicalFootprintBytes": 244669784,
+  "processes": [
+    {
+      "name": "com.apple.WebKit.WebContent",
+      "pid": 78543,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 62718792,
+      "auxiliary": {
+        "phys_footprint_peak": 80347976,
+        "phys_footprint": 62718792
+      }
+    },
+    {
+      "name": "com.apple.WebKit.WebContent",
+      "pid": 78545,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 42222384,
+      "auxiliary": {
+        "phys_footprint_peak": 53330760,
+        "phys_footprint": 42222384
+      }
+    },
+    {
+      "name": "waypoint",
+      "pid": 78539,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 29115496,
+      "auxiliary": {
+        "phys_footprint_peak": 35980392,
+        "phys_footprint": 29115496
+      }
+    },
+    {
+      "name": "MTLCompilerService",
+      "pid": 78549,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 25461264,
+      "auxiliary": {
+        "phys_footprint_peak": 40206888,
+        "phys_footprint": 25461264
+      }
+    },
+    {
+      "name": "com.apple.WebKit.WebContent",
+      "pid": 78546,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 21660512,
+      "auxiliary": {
+        "phys_footprint_peak": 27755384,
+        "phys_footprint": 21660512
+      }
+    },
+    {
+      "name": "com.apple.WebKit.GPU",
+      "pid": 78542,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 19399448,
+      "auxiliary": {
+        "phys_footprint_peak": 98911000,
+        "phys_footprint": 19399448
+      }
+    },
+    {
+      "name": "com.apple.WebKit.WebContent",
+      "pid": 78547,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 19006208,
+      "auxiliary": {
+        "phys_footprint_peak": 24003352,
+        "phys_footprint": 19006208
+      }
+    },
+    {
+      "name": "ThemeWidgetControlViewService",
+      "pid": 78551,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 12632520,
+      "auxiliary": {
+        "phys_footprint_peak": 13156808,
+        "phys_footprint": 12632520
+      }
+    },
+    {
+      "name": "com.apple.WebKit.Networking",
+      "pid": 78544,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 7111112,
+      "auxiliary": {
+        "phys_footprint_peak": 8339912,
+        "phys_footprint": 7111112
+      }
+    },
+    {
+      "name": "com.apple.audio.SandboxHelper",
+      "pid": 78548,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 3293712,
+      "auxiliary": {
+        "phys_footprint_peak": 5800464,
+        "phys_footprint": 3293712
+      }
+    },
+    {
+      "name": "SetStoreUpdateService",
+      "pid": 78541,
+      "translated": false,
+      "page size": 16384,
+      "footprint": 2982224,
+      "auxiliary": {
+        "phys_footprint_peak": 4554992,
+        "phys_footprint": 2982224
+      }
+    }
+  ],
+  "samples": [
+    {
+      "elapsedSeconds": 1.067,
+      "rssBytes": 184205312,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 2.108,
+      "rssBytes": 185679872,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 3.162,
+      "rssBytes": 187809792,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 4.222,
+      "rssBytes": 201506816,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 5.268,
+      "rssBytes": 204259328,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 6.311,
+      "rssBytes": 204242944,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 7.354,
+      "rssBytes": 204242944,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 8.399,
+      "rssBytes": 204242944,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 9.445,
+      "rssBytes": 204554240,
+      "processCount": 11
+    },
+    {
+      "elapsedSeconds": 10.494,
+      "rssBytes": 205225984,
+      "processCount": 11
+    }
+  ],
+  "binarySha256": "123551871735de46a44a606b7bce34b1b60957808aafa0ae9043c7b079368465"
+}

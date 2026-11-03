@@ -1,3 +1,4 @@
+import type { HistorySnapshot } from "../overlay/history";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
@@ -7,9 +8,14 @@ import type {
   DrawingState,
   Features,
   Tool,
+  ShortcutSnapshot,
+  ShortcutAction,
 } from "./types";
 
 export interface Events {
+  "app:error": string;
+  "displays:changed": null;
+  "shortcuts:changed": ShortcutSnapshot;
   "tool:changed": DrawingState;
   "color:changed": DrawingState;
   "annotations:clear": null;
@@ -30,6 +36,15 @@ export function on<K extends keyof Events>(
 }
 
 export const commands = {
+  recordShortcut: (active: boolean) =>
+    invoke<void>("record_shortcut", { active }),
+  getShortcuts: () => invoke<ShortcutSnapshot>("get_shortcuts"),
+  setShortcut: (action: ShortcutAction, binding: string) =>
+    invoke<ShortcutSnapshot>("set_shortcut", { action, binding }),
+  getOverlaySession: () =>
+    invoke<HistorySnapshot | null>("get_overlay_session"),
+  saveOverlaySession: (snapshot: HistorySnapshot) =>
+    invoke<void>("save_overlay_session", { snapshot }),
   editAgenda: (edit: AgendaEdit) =>
     invoke<AgendaState>("edit_agenda", { edit }),
   openSetup: () => invoke<void>("open_setup"),

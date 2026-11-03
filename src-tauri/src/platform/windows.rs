@@ -66,3 +66,44 @@ pub fn focus_setup(window: &tauri::WebviewWindow, remember: bool) -> Result<(), 
 pub fn release_setup(window: &tauri::WebviewWindow) -> Result<(), String> {
     end_text_edit(window)
 }
+
+pub fn watch_displays(app: &tauri::AppHandle) -> tauri::Result<()> {
+    use tauri::Manager;
+    use windows_sys::Win32::UI::Shell::SetWindowSubclass;
+    let window = app
+        .get_webview_window(crate::windows::HOTBAR)
+        .ok_or(tauri::Error::WindowNotFound)?;
+    let handle = Box::into_raw(Box::new(app.clone()));
+    if unsafe { SetWindowSubclass(window.hwnd()?.0, Some(display_message), 1, handle as usize) }
+        == 0
+    {
+        unsafe {
+            drop(Box::from_raw(handle));
+        }
+        return Err(std::io::Error::last_os_error().into());
+    }
+    Ok(())
+}
+unsafe extern "system" fn display_message(
+    hwnd: windows_sys::Win32::Foundation::HWND,
+    message: u32,
+    wparam: usize,
+    lparam: isize,
+    id: usize,
+    data: usize,
+) -> isize {
+    use windows_sys::Win32::UI::{
+        Shell::{DefSubclassProc, RemoveWindowSubclass},
+        WindowsAndMessaging::{WM_DISPLAYCHANGE, WM_DPICHANGED, WM_NCDESTROY, WM_SETTINGCHANGE},
+    };
+    if message == WM_DISPLAYCHANGE || message == WM_DPICHANGED || message == WM_SETTINGCHANGE {
+        crate::displays::request_refresh(&*(data as *const tauri::AppHandle));
+    }
+    if message == WM_NCDESTROY {
+        RemoveWindowSubclass(hwnd, Some(display_message), id);
+        drop(Box::from_raw(data as *mut tauri::AppHandle));
+    }
+    DefSubclassProc(hwnd, message, wparam, lparam)
+}
+pub fn stop_display_watch() {}
+pub fn forget_overlay(_app: &tauri::AppHandle, _label: &str) {}

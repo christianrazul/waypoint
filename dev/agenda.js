@@ -67,6 +67,9 @@ export function editPreviewAgenda(state, edit) {
     case "corner":
       state.settings.corner = edit.corner;
       break;
+    case "display":
+      state.settings.display = edit.display;
+      break;
     case "compact":
       state.settings.compact = edit.compact;
       break;

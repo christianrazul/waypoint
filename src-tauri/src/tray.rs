@@ -2,7 +2,7 @@
 
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, Wry};
+use tauri::{AppHandle, Manager, Wry};
 
 use crate::platform::Level;
 use crate::{agenda, windows, AppState};
@@ -120,17 +120,14 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
                 "sticky_setup" => crate::setup::open(app),
                 "sticky_toggle" => agenda::toggle(app).map(|_| ()),
                 CLICK_THROUGH => windows::toggle_click_through(app),
-                CLEAR | "undo" | "redo" => windows::end_text_edit(app).and_then(|()| {
-                    app.emit(
-                        match id {
-                            "undo" => "annotations:undo",
-                            "redo" => "annotations:redo",
-                            _ => "annotations:clear",
-                        },
-                        (),
-                    )
-                    .map_err(|e| e.to_string())
-                }),
+                CLEAR | "undo" | "redo" => crate::displays::history_action(
+                    app,
+                    match id {
+                        "undo" => "annotations:undo",
+                        "redo" => "annotations:redo",
+                        _ => "annotations:clear",
+                    },
+                ),
                 QUIT => {
                     app.exit(0);
                     Ok(())
@@ -155,6 +152,17 @@ pub fn sync(app: &AppHandle) {
         return;
     };
     let state = app.state::<AppState>();
+    let bindings = crate::shortcuts::get(app).bindings;
+    if let Some(binding) = bindings.get(&crate::shortcuts::Action::ToggleDrawing) {
+        let _ = items
+            .click_through
+            .set_text(format!("Click-through ({binding})"));
+    }
+    if let Some(binding) = bindings.get(&crate::shortcuts::Action::ToggleSticky) {
+        let _ = items
+            .sticky
+            .set_text(format!("Waypoint sticky ({binding})"));
+    }
     if let Ok(agenda) = agenda::get(app) {
         let _ = items.sticky.set_checked(agenda.settings.enabled);
     }

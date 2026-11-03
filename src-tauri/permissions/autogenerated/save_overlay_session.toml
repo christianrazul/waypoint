@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-overlay-session"
+description = "Enables the save_overlay_session command without any pre-configured scope."
+commands.allow = ["save_overlay_session"]
+
+[[permission]]
+identifier = "deny-save-overlay-session"
+description = "Denies the save_overlay_session command without any pre-configured scope."
+commands.deny = ["save_overlay_session"]
