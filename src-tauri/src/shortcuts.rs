@@ -12,6 +12,7 @@ const DRAWING_SHORTCUTS: [&str; 3] = ["Escape", "super+KeyZ", "super+shift+KeyZ"
 const DRAWING_SHORTCUTS: [&str; 3] = ["Escape", "ctrl+KeyZ", "ctrl+shift+KeyZ"];
 
 pub fn set_annotation_shortcuts(app: &AppHandle, enabled: bool) -> Result<(), String> {
+    let enabled = enabled && !crate::setup::is_open(app);
     let shortcuts = app.global_shortcut();
     let mut changed = Vec::new();
     for binding in DRAWING_SHORTCUTS {

@@ -1,10 +1,5 @@
 export type Tool =
-  | "pen"
-  | "arrow"
-  | "rectangle"
-  | "ellipse"
-  | "text"
-  | "eraser";
+  "pen" | "arrow" | "rectangle" | "ellipse" | "text" | "eraser";
 export type ShapeTool = "arrow" | "rectangle" | "ellipse";
 export type Position = [x: number, y: number];
 export type Point = [x: number, y: number, pressure: number];
@@ -79,3 +74,25 @@ export interface AgendaState {
   revision: number;
 }
 export type AgendaDirection = "previous" | "next";
+
+export type AgendaEdit =
+  | { type: "addSection"; id: string }
+  | { type: "renameSection"; sectionId: string; title: string }
+  | { type: "deleteSection"; sectionId: string }
+  | { type: "moveSection"; sectionId: string; beforeId: string | null }
+  | { type: "selectSection"; sectionId: string }
+  | { type: "addItem"; sectionId: string; id: string }
+  | {
+      type: "editItem";
+      sectionId: string;
+      itemId: string;
+      text?: string;
+      optional?: boolean;
+      details?: string[];
+    }
+  | { type: "deleteItem"; sectionId: string; itemId: string }
+  | { type: "resetChecklist" }
+  | { type: "style"; style: StickySettings["style"] }
+  | { type: "opacity"; opacity: number }
+  | { type: "corner"; corner: StickySettings["corner"] }
+  | { type: "compact"; compact: boolean };

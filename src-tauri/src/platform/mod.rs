@@ -101,3 +101,13 @@ pub fn end_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
 pub fn sample_color(app: &tauri::AppHandle) -> Result<(), String> {
     imp::sample_color(app)
 }
+
+pub fn configure_setup(window: &tauri::WebviewWindow, level: Level) -> tauri::Result<()> {
+    imp::configure_setup(window, level)
+}
+pub fn focus_setup(window: &tauri::WebviewWindow, remember: bool) -> Result<(), String> {
+    imp::focus_setup(window, remember)
+}
+pub fn release_setup(window: &tauri::WebviewWindow) -> Result<(), String> {
+    imp::release_setup(window)
+}

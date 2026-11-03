@@ -6,6 +6,7 @@ const entries = {
   overlay: "overlay.html",
   hotbar: "hotbar.html",
   sticky: "sticky.html",
+  setup: "setup.html",
 };
 
 export default defineConfig({

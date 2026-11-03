@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-edit-agenda"
+description = "Enables the edit_agenda command without any pre-configured scope."
+commands.allow = ["edit_agenda"]
+
+[[permission]]
+identifier = "deny-edit-agenda"
+description = "Denies the edit_agenda command without any pre-configured scope."
+commands.deny = ["edit_agenda"]

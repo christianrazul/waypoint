@@ -28,6 +28,8 @@ export function Sticky({
   maxHeight,
   onDone,
   onNavigate,
+  onDrag,
+  onSetup,
 }: {
   state: AgendaState;
   busy: ReadonlySet<string>;
@@ -35,17 +37,37 @@ export function Sticky({
   maxHeight?: number;
   onDone: (sectionId: string, itemId: string, done: boolean) => void;
   onNavigate: (direction: "previous" | "next") => void;
+  onDrag?: () => void;
+  onSetup?: () => void;
 }) {
   const section = currentSection(state);
   const complete = section ? allChecked(section) : false;
   const style = {
-    "--sticky-fill": `rgba(30,34,42,${state.settings.opacity / 100})`,
+    "--sticky-fill":
+      state.settings.style === "paper"
+        ? "#FFE89A"
+        : state.settings.style === "clear"
+          ? `rgba(255,255,255,${state.settings.opacity / 100})`
+          : `rgba(30,34,42,${state.settings.opacity / 100})`,
     "--sticky-accent": state.settings.accent,
     maxHeight,
   } as CSSProperties;
   return (
-    <section className="sticky" aria-label="Waypoint agenda" style={style}>
-      <header className="sticky-header">
+    <section
+      className={`sticky sticky-${state.settings.style}`}
+      aria-label="Waypoint agenda"
+      style={style}
+    >
+      <header
+        className="sticky-header"
+        title="Drag to move sticky"
+        onMouseDown={(event) => {
+          if (event.button === 0) {
+            event.preventDefault();
+            onDrag?.();
+          }
+        }}
+      >
         <span>YOU ARE HERE</span>
         <span>
           Step {section ? state.agenda.currentIndex + 1 : 0} /{" "}
@@ -102,7 +124,12 @@ export function Sticky({
       )}
       {!section && (
         <p className="empty-agenda">
-          Agenda setup will be available in a later update.
+          Add sections and checklist items in setup.
+          {onSetup && (
+            <button className="empty-setup" onClick={onSetup}>
+              Open setup
+            </button>
+          )}
         </p>
       )}
       <footer className="sticky-footer">

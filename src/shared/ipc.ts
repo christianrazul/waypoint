@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
+  AgendaEdit,
   AgendaDirection,
   AgendaState,
   DrawingState,
@@ -17,7 +18,8 @@ export interface Events {
   "text:commit": null;
   "agenda:changed": number;
   "sticky:toggle": boolean;
-  "setup:requested": null;
+  "setup:opened": null;
+  "setup:closing": null;
 }
 
 export function on<K extends keyof Events>(
@@ -28,6 +30,12 @@ export function on<K extends keyof Events>(
 }
 
 export const commands = {
+  editAgenda: (edit: AgendaEdit) =>
+    invoke<AgendaState>("edit_agenda", { edit }),
+  openSetup: () => invoke<void>("open_setup"),
+  requestSetupClose: () => invoke<void>("request_setup_close"),
+  closeSetup: () => invoke<void>("close_setup"),
+  startStickyDrag: () => invoke<void>("start_sticky_drag"),
   getAgendaState: () => invoke<AgendaState>("get_agenda_state"),
   toggleSticky: () => invoke<AgendaState>("toggle_sticky"),
   navigateAgenda: (direction: AgendaDirection) =>

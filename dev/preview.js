@@ -1,3 +1,4 @@
+import { editPreviewAgenda } from "./agenda";
 import seed from "../src/shared/seed-agenda.json";
 const agendaKey = "waypoint-preview-agenda-v1";
 let storedAgenda;
@@ -8,6 +9,7 @@ try {
 }
 
 const bridge = {
+  setupOpen: false,
   agenda: storedAgenda ?? structuredClone(seed),
   state: {
     tool: "pen",
@@ -35,13 +37,50 @@ const bridge = {
     document.getElementById("sticky").style.visibility = next.settings.enabled
       ? "visible"
       : "hidden";
+    this.placeSticky();
     this.emit("agenda:changed", next.revision);
+  },
+  openSetup() {
+    this.setupOpen = true;
+    document.getElementById("overlay").style.pointerEvents = "none";
+    document.getElementById("setup").style.visibility = "visible";
+    this.emit("setup:opened");
+  },
+  closeSetup() {
+    this.setupOpen = false;
+    document.getElementById("overlay").style.pointerEvents = "auto";
+    document.getElementById("setup").style.visibility = "hidden";
+  },
+  editAgenda(edit) {
+    if (edit.type === "corner")
+      localStorage.removeItem("waypoint-preview-position");
+    this.setAgenda(editPreviewAgenda(structuredClone(this.agenda), edit));
+    return structuredClone(this.agenda);
+  },
+  placeSticky() {
+    const frame = document.getElementById("sticky");
+    const corner = this.agenda.settings.corner;
+    const height = Number.parseFloat(frame.style.height) || 416;
+    let custom;
+    try {
+      custom = JSON.parse(localStorage.getItem("waypoint-preview-position"));
+    } catch {
+      custom = null;
+    }
+    const ox = custom?.x ?? 40;
+    const oy = custom?.y ?? 32;
+    const left = corner.endsWith("r") ? innerWidth - 460 - ox : ox;
+    const top = corner.startsWith("b") ? innerHeight - (height - 96) - oy : oy;
+    frame.style.left = `${Math.max(0, Math.min(innerWidth - 460, left)) - 48}px`;
+    frame.style.top = `${Math.max(0, Math.min(innerHeight - height + 96, top)) - 48}px`;
+    frame.style.bottom = "auto";
   },
   toggleSticky() {
     const next = structuredClone(this.agenda);
     next.settings.enabled = !next.settings.enabled;
     this.setAgenda(next);
     this.emit("sticky:toggle", next.settings.enabled);
+    if (next.settings.enabled && !next.agenda.sections.length) this.openSetup();
     return structuredClone(this.agenda);
   },
   navigateAgenda(direction) {
@@ -69,7 +108,7 @@ const bridge = {
         return;
       }
     }
-    if (!this.state.armed || this.state.editing) return;
+    if (this.setupOpen || !this.state.armed || this.state.editing) return;
     if (event.key === "Escape") {
       event.preventDefault();
       this.update({ armed: false });
@@ -83,7 +122,7 @@ const bridge = {
   },
 };
 window.waypointPreview = bridge;
-for (const view of ["overlay", "hotbar", "sticky"]) {
+for (const view of ["overlay", "hotbar", "sticky", "setup"]) {
   const frame = document.createElement("iframe");
   frame.id = view;
   frame.title = `Waypoint ${view}`;
@@ -103,3 +142,10 @@ document.getElementById("sticky").style.visibility = bridge.agenda.settings
   : "hidden";
 document.getElementById("reset-agenda").onclick = () =>
   bridge.setAgenda(structuredClone(seed));
+
+bridge.placeSticky();
+document.getElementById("open-setup").onclick = () => bridge.openSetup();
+window.addEventListener("mousedown", () => {
+  if (bridge.setupOpen) bridge.emit("setup:closing");
+});
+window.addEventListener("resize", () => bridge.placeSticky());

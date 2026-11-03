@@ -20,6 +20,11 @@ fn main() {
             "navigate_agenda",
             "set_agenda_item_done",
             "resize_sticky",
+            "edit_agenda",
+            "open_setup",
+            "close_setup",
+            "request_setup_close",
+            "start_sticky_drag",
         ]),
     ))
     .expect("failed to run tauri-build");

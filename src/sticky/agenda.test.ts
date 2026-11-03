@@ -99,3 +99,19 @@ it("renders inline code as text safely and keeps unmatched delimiters literal", 
   expect(html).toContain("<code>&lt;script&gt;alert(1)&lt;/script&gt;</code>");
   expect(html).not.toContain("<script>");
 });
+
+it("applies opacity only to the fill and keeps Paper solid", () => {
+  const state = fresh();
+  state.settings.style = "clear";
+  state.settings.opacity = 35;
+  let html = render(state);
+  expect(html).toContain("sticky-clear");
+  expect(html).toContain("--sticky-fill:rgba(255,255,255,0.35)");
+  expect(html).not.toContain('style="opacity:');
+  state.settings.style = "paper";
+  state.settings.opacity = 0;
+  html = render(state);
+  expect(html).toContain("sticky-paper");
+  expect(html).toContain("--sticky-fill:#FFE89A");
+  expect(html).toContain("Point at the gateway box");
+});

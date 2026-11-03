@@ -9,12 +9,20 @@ use tauri_nspanel::{tauri_panel, CollectionBehavior, ManagerExt, StyleMask, Webv
 use super::Level;
 
 static TEXT_EDITING: AtomicBool = AtomicBool::new(false);
+static SETUP_PREVIOUS_APP: AtomicI32 = AtomicI32::new(0);
 static PREVIOUS_APP: AtomicI32 = AtomicI32::new(0);
 
 tauri_panel! {
     panel!(OverlayPanel {
         config: {
             can_become_key_window: TEXT_EDITING.load(Ordering::SeqCst),
+            can_become_main_window: false,
+            is_floating_panel: true
+        }
+    })
+    panel!(SetupPanel {
+        config: {
+            can_become_key_window: true,
             can_become_main_window: false,
             is_floating_panel: true
         }
@@ -26,6 +34,31 @@ tauri_panel! {
             is_floating_panel: true
         }
     })
+}
+
+mod setup_events {
+    #![allow(clippy::unused_unit)]
+    use tauri_nspanel::tauri_panel;
+    tauri_panel! {
+        panel_event!(SetupEvents {
+            window_did_resign_key(notification: &NSNotification) -> ()
+        })
+    }
+    pub fn install(window: &tauri::WebviewWindow) -> tauri::Result<()> {
+        use tauri::Manager;
+        use tauri_nspanel::ManagerExt;
+        let panel = window
+            .app_handle()
+            .get_webview_panel(window.label())
+            .map_err(|_| tauri::Error::WindowNotFound)?;
+        let handler = SetupEvents::new();
+        let app = window.app_handle().clone();
+        handler.window_did_resign_key(move |_| {
+            crate::setup::request_close(&app);
+        });
+        panel.set_event_handler(Some(handler.as_ref()));
+        Ok(())
+    }
 }
 
 #[link(name = "CoreGraphics", kind = "framework")]
@@ -82,6 +115,46 @@ pub fn configure_floating(window: &tauri::WebviewWindow, level: Level) -> tauri:
     to_panel(window, raw_level(level) + 1, false)
 }
 
+pub fn configure_setup(window: &tauri::WebviewWindow, level: Level) -> tauri::Result<()> {
+    let panel = window.to_panel::<SetupPanel>()?;
+    panel
+        .add_style_mask(StyleMask::empty().nonactivating_panel().into())
+        .map_err(|err| tauri::Error::Anyhow(err.into()))?;
+    panel.set_collection_behavior(behavior().into());
+    panel.set_level(raw_level(level) + 2);
+    panel.set_hides_on_deactivate(false);
+    panel.set_has_shadow(false);
+    setup_events::install(window)?;
+    Ok(())
+}
+
+pub fn focus_setup(window: &tauri::WebviewWindow, remember: bool) -> Result<(), String> {
+    if remember {
+        let previous = NSWorkspace::sharedWorkspace().frontmostApplication();
+        SETUP_PREVIOUS_APP.store(
+            previous.map(|app| app.processIdentifier()).unwrap_or(0),
+            Ordering::SeqCst,
+        );
+    }
+    let panel = window
+        .app_handle()
+        .get_webview_panel(window.label())
+        .map_err(|_| "Setup panel is unavailable")?;
+    panel.show();
+    panel.make_key_window();
+    if !panel.as_panel().isKeyWindow() {
+        return Err("Setup could not receive keyboard focus".into());
+    }
+    Ok(())
+}
+
+pub fn release_setup(window: &tauri::WebviewWindow) -> Result<(), String> {
+    if let Ok(panel) = window.app_handle().get_webview_panel(window.label()) {
+        panel.resign_key_window();
+    }
+    restore_app(SETUP_PREVIOUS_APP.swap(0, Ordering::SeqCst))
+}
+
 pub fn apply_level(
     app: &tauri::AppHandle,
     overlay_labels: &[&str],
@@ -95,6 +168,9 @@ pub fn apply_level(
                 panel.set_level(value);
             }
         }
+    }
+    if let Ok(panel) = app.get_webview_panel(crate::setup::SETUP) {
+        panel.set_level(base + 2);
     }
 }
 
@@ -134,7 +210,10 @@ pub fn end_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
     if let Ok(panel) = window.app_handle().get_webview_panel(window.label()) {
         panel.resign_key_window();
     }
-    let pid = PREVIOUS_APP.swap(0, Ordering::SeqCst);
+    restore_app(PREVIOUS_APP.swap(0, Ordering::SeqCst))
+}
+
+fn restore_app(pid: i32) -> Result<(), String> {
     let current = NSWorkspace::sharedWorkspace().frontmostApplication();
     let own_pid = NSRunningApplication::currentApplication().processIdentifier();
     let current_pid = current.map(|app| app.processIdentifier()).unwrap_or(0);

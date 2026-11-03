@@ -5,6 +5,8 @@
     <title>Waypoint drawing preview</title>
     <style>
       body {
+        position: fixed;
+        inset: 0;
         margin: 0;
         background: #f3f5f9;
         color: #192230;
@@ -71,6 +73,15 @@
         border: 0;
         visibility: hidden;
       }
+      #setup {
+        position: absolute;
+        right: -56px;
+        top: -64px;
+        width: 592px;
+        height: calc(min(650px, 100vh - 64px) + 192px);
+        border: 0;
+        visibility: hidden;
+      }
       .controls {
         position: absolute;
         bottom: 18px;
@@ -107,6 +118,7 @@
     <div class="controls">
       <button id="undo">Undo</button><button id="redo">Redo</button
       ><button id="clear">Clear</button
+      ><button id="open-setup">Sticky setup</button
       ><button id="reset-agenda">Reset agenda</button
       ><span>Browser preview · native focus simulated</span>
     </div>

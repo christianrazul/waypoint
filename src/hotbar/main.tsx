@@ -1,3 +1,4 @@
+import { connectSetupDismissal } from "../shared/setup-dismissal";
 import {
   StrictMode,
   useEffect,
@@ -35,6 +36,7 @@ const TOOLS: { tool: Tool; label: string; icon?: IconName }[] = [
 ];
 
 function Hotbar() {
+  useEffect(connectSetupDismissal, []);
   const { drawing, ready, error: drawingError } = useAppStore();
   const {
     state: agenda,
@@ -194,9 +196,15 @@ function Hotbar() {
           className="sticky-button"
           aria-label="Waypoint sticky"
           aria-pressed={agenda?.settings.enabled ?? false}
-          title="Toggle agenda sticky (Ctrl+Option+S)"
+          title="Toggle agenda sticky (Ctrl+Option+S) · Alt-click to set up"
           disabled={!agendaReady || busy}
-          onClick={() => void runAgendaCommand(commands.toggleSticky)}
+          onClick={(event) => {
+            if (event.altKey)
+              void commands
+                .openSetup()
+                .catch((error) => useAgendaStore.getState().reportError(error));
+            else void runAgendaCommand(commands.toggleSticky);
+          }}
         >
           <Icon name="note" />
           Sticky

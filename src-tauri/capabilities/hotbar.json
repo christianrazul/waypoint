@@ -24,6 +24,8 @@
     "allow-end-sampling",
     "allow-sample-color",
     "allow-get-agenda-state",
-    "allow-toggle-sticky"
+    "allow-toggle-sticky",
+    "allow-open-setup",
+    "allow-request-setup-close"
   ]
 }

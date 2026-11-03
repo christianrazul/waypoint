@@ -15,6 +15,9 @@
     "allow-get-agenda-state",
     "allow-set-agenda-item-done",
     "allow-navigate-agenda",
-    "allow-resize-sticky"
+    "allow-resize-sticky",
+    "allow-start-sticky-drag",
+    "allow-open-setup",
+    "allow-request-setup-close"
   ]
 }

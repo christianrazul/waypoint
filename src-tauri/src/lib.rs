@@ -1,5 +1,7 @@
 mod agenda;
+mod editing;
 mod platform;
+mod setup;
 mod shortcuts;
 mod tray;
 mod windows;
@@ -182,6 +184,27 @@ fn resize_sticky(app: AppHandle, height: f64) -> Result<f64, String> {
     windows::resize_sticky(&app, height)
 }
 
+#[tauri::command]
+fn edit_agenda(app: AppHandle, edit: editing::AgendaEdit) -> Result<agenda::AgendaState, String> {
+    editing::apply(&app, edit)
+}
+#[tauri::command]
+fn open_setup(app: AppHandle) -> Result<(), String> {
+    setup::open(&app)
+}
+#[tauri::command]
+fn request_setup_close(app: AppHandle) {
+    setup::request_close(&app);
+}
+#[tauri::command]
+fn close_setup(app: AppHandle) -> Result<(), String> {
+    setup::close(&app)
+}
+#[tauri::command]
+fn start_sticky_drag(app: AppHandle) -> Result<(), String> {
+    windows::start_sticky_drag(&app)
+}
+
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
@@ -192,6 +215,7 @@ pub fn run() {
     builder
         .manage(AppState::default())
         .manage(windows::StickyLayout::default())
+        .manage(setup::SetupState::default())
         .invoke_handler(tauri::generate_handler![
             get_drawing_state,
             select_tool,
@@ -209,7 +233,12 @@ pub fn run() {
             toggle_sticky,
             navigate_agenda,
             set_agenda_item_done,
-            resize_sticky
+            resize_sticky,
+            edit_agenda,
+            open_setup,
+            close_setup,
+            request_setup_close,
+            start_sticky_drag
         ])
         .setup(|app| {
             platform::init_app(app);
@@ -218,6 +247,7 @@ pub fn run() {
             windows::create_overlay(handle)?;
             windows::create_hotbar(handle)?;
             windows::create_sticky(handle)?;
+            setup::create(handle)?;
             tray::create(handle)?;
             Ok(())
         })

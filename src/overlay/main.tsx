@@ -1,3 +1,4 @@
+import { connectSetupDismissal } from "../shared/setup-dismissal";
 import { StrictMode, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { on } from "../shared/ipc";
@@ -7,6 +8,7 @@ import { TEXT_FONT, TEXT_HEIGHT } from "./render";
 import "../shared/tokens.css";
 
 function Overlay() {
+  useEffect(connectSetupDismissal, []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const controllerRef = useRef<DrawingController | null>(null);

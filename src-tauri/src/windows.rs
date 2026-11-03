@@ -1,6 +1,9 @@
 use crate::{agenda, platform, shortcuts, AppState, Tool};
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Mutex,
+};
 use tauri::{
     AppHandle, Emitter, LogicalSize, Manager, Monitor, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder, WindowEvent,
@@ -25,6 +28,7 @@ const STICKY_MARGIN: f64 = 48.0;
 #[derive(Default)]
 pub struct StickyLayout {
     height: Mutex<Option<f64>>,
+    dragging: AtomicBool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -207,7 +211,7 @@ fn set_mode(app: &AppHandle, tool: Tool, armed: bool) -> Result<(), String> {
         .get_webview_window(OVERLAY)
         .ok_or("Annotation overlay is unavailable")?;
     shortcuts::set_annotation_shortcuts(app, armed)?;
-    if let Err(error) = overlay.set_ignore_cursor_events(!armed) {
+    if let Err(error) = overlay.set_ignore_cursor_events(!armed || crate::setup::is_open(app)) {
         let _ = shortcuts::set_annotation_shortcuts(app, current.armed);
         return Err(error.to_string());
     }
@@ -418,6 +422,20 @@ pub fn create_sticky(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .inner_size(initial.width, initial.height)
         .build()?;
     platform::configure_floating(&window, level)?;
+    let handle = app.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::Moved(position) = event {
+            if handle
+                .state::<StickyLayout>()
+                .dragging
+                .load(Ordering::SeqCst)
+            {
+                if let Err(error) = remember_sticky_position(&handle, position) {
+                    eprintln!("[sticky] {error}");
+                }
+            }
+        }
+    });
     Ok(window)
 }
 
@@ -433,7 +451,19 @@ pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
         .primary_monitor()
         .map_err(|error| error.to_string())?
         .ok_or("Primary display is unavailable")?;
-    let bounds = sticky_frame(frame(&monitor), state.settings.corner, height.ceil());
+    app.state::<StickyLayout>()
+        .dragging
+        .store(false, Ordering::SeqCst);
+    let mut bounds = sticky_frame(frame(&monitor), state.settings.corner, height.ceil());
+    let store = app
+        .store(agenda::SETTINGS_FILE)
+        .map_err(|e| e.to_string())?;
+    if let Some(offset) = store
+        .get(sticky_position_key(&monitor))
+        .and_then(|v| serde_json::from_value::<Position>(v).ok())
+    {
+        apply_custom_offset(&mut bounds, frame(&monitor), state.settings.corner, offset);
+    }
     window
         .set_size(LogicalSize::new(bounds.width, bounds.height))
         .map_err(|error| error.to_string())?;
@@ -446,6 +476,123 @@ pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
         .map_err(|_| "Sticky layout is unavailable")? = Some(bounds.content_height);
     sync_sticky(app, &state)?;
     Ok(bounds.max_content_height)
+}
+
+fn sticky_position_key(monitor: &Monitor) -> String {
+    monitor_key(monitor).replacen("hotbar:", "sticky-position:", 1)
+}
+
+fn apply_custom_offset(
+    bounds: &mut StickyFrame,
+    monitor: (f64, f64, f64, f64),
+    corner: agenda::Corner,
+    offset: Position,
+) {
+    if !offset.x.is_finite() || !offset.y.is_finite() {
+        return;
+    }
+    let (x, y, width, height) = monitor;
+    let left = if matches!(corner, agenda::Corner::Tr | agenda::Corner::Br) {
+        width - STICKY_WIDTH - offset.x
+    } else {
+        offset.x
+    };
+    let top = if matches!(corner, agenda::Corner::Bl | agenda::Corner::Br) {
+        height - bounds.content_height - offset.y
+    } else {
+        offset.y
+    };
+    bounds.x = x + left.clamp(0.0, (width - STICKY_WIDTH).max(0.0)) - STICKY_MARGIN;
+    bounds.y = y + top.clamp(0.0, (height - bounds.content_height).max(0.0)) - STICKY_MARGIN;
+}
+
+fn remember_sticky_position(
+    app: &AppHandle,
+    position: &tauri::PhysicalPosition<i32>,
+) -> Result<(), String> {
+    let monitor = app
+        .primary_monitor()
+        .map_err(|e| e.to_string())?
+        .ok_or("Primary display is unavailable")?;
+    let position = position.to_logical::<f64>(monitor.scale_factor());
+    let state = agenda::get(app)?;
+    let height = app
+        .state::<StickyLayout>()
+        .height
+        .lock()
+        .map_err(|_| "Sticky layout is unavailable")?
+        .unwrap_or(320.0);
+    let (x, y, width, screen_height) = frame(&monitor);
+    let left = (position.x + STICKY_MARGIN - x).clamp(0.0, (width - STICKY_WIDTH).max(0.0));
+    let top = (position.y + STICKY_MARGIN - y).clamp(0.0, (screen_height - height).max(0.0));
+    let offset = Position {
+        x: if matches!(
+            state.settings.corner,
+            agenda::Corner::Tr | agenda::Corner::Br
+        ) {
+            width - left - STICKY_WIDTH
+        } else {
+            left
+        },
+        y: if matches!(
+            state.settings.corner,
+            agenda::Corner::Bl | agenda::Corner::Br
+        ) {
+            screen_height - top - height
+        } else {
+            top
+        },
+    };
+    app.store(agenda::SETTINGS_FILE)
+        .map_err(|e| e.to_string())?
+        .set(
+            sticky_position_key(&monitor),
+            serde_json::to_value(offset).map_err(|e| e.to_string())?,
+        );
+    Ok(())
+}
+
+pub fn start_sticky_drag(app: &AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window(STICKY)
+        .ok_or("Sticky is unavailable")?;
+    app.state::<StickyLayout>()
+        .dragging
+        .store(true, Ordering::SeqCst);
+    if let Err(error) = window.start_dragging() {
+        app.state::<StickyLayout>()
+            .dragging
+            .store(false, Ordering::SeqCst);
+        return Err(error.to_string());
+    }
+    Ok(())
+}
+
+pub fn reset_sticky_position(app: &AppHandle) -> Result<(), String> {
+    app.state::<StickyLayout>()
+        .dragging
+        .store(false, Ordering::SeqCst);
+    let monitor = app
+        .primary_monitor()
+        .map_err(|e| e.to_string())?
+        .ok_or("Primary display is unavailable")?;
+    let store = app
+        .store(agenda::SETTINGS_FILE)
+        .map_err(|e| e.to_string())?;
+    store.delete(sticky_position_key(&monitor));
+    store.save().map_err(|e| e.to_string())
+}
+
+pub fn refresh_sticky(app: &AppHandle) -> Result<(), String> {
+    let height = *app
+        .state::<StickyLayout>()
+        .height
+        .lock()
+        .map_err(|_| "Sticky layout is unavailable")?;
+    if let Some(height) = height {
+        resize_sticky(app, height)?;
+    }
+    Ok(())
 }
 
 pub fn sync_sticky(app: &AppHandle, state: &agenda::AgendaState) -> Result<(), String> {
@@ -470,6 +617,29 @@ pub fn sync_sticky(app: &AppHandle, state: &agenda::AgendaState) -> Result<(), S
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn custom_offsets_follow_the_selected_anchor_and_clamp_to_display() {
+        let mut bounds = sticky_frame((100.0, 200.0, 1440.0, 900.0), agenda::Corner::Br, 300.0);
+        apply_custom_offset(
+            &mut bounds,
+            (100.0, 200.0, 1440.0, 900.0),
+            agenda::Corner::Br,
+            Position { x: 80.0, y: 60.0 },
+        );
+        assert_eq!(bounds.x + STICKY_MARGIN + STICKY_WIDTH, 1460.0);
+        assert_eq!(bounds.y + STICKY_MARGIN + bounds.content_height, 1040.0);
+        apply_custom_offset(
+            &mut bounds,
+            (100.0, 200.0, 1440.0, 900.0),
+            agenda::Corner::Bl,
+            Position {
+                x: -500.0,
+                y: 5000.0,
+            },
+        );
+        assert_eq!(bounds.x + STICKY_MARGIN, 100.0);
+        assert_eq!(bounds.y + STICKY_MARGIN, 200.0);
+    }
     #[test]
     fn resizing_keeps_the_visible_bottom_left_anchor_fixed() {
         let short = sticky_frame((0.0, 0.0, 1440.0, 900.0), agenda::Corner::Bl, 150.0);

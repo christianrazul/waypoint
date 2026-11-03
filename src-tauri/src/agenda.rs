@@ -171,7 +171,7 @@ impl AgendaManager {
         state.validate()?;
         Ok(state)
     }
-    fn update(
+    pub(crate) fn update(
         &self,
         change: impl FnOnce(&mut AgendaState) -> Result<bool, String>,
     ) -> Result<(AgendaState, bool), String> {
@@ -236,7 +236,7 @@ pub fn get(app: &AppHandle) -> Result<AgendaState, String> {
         .map_err(|_| "Agenda storage is unavailable")?;
     manager.read()
 }
-fn changed(app: &AppHandle, state: &AgendaState) -> Result<(), String> {
+pub(crate) fn changed(app: &AppHandle, state: &AgendaState) -> Result<(), String> {
     app.emit("agenda:changed", state.revision)
         .map_err(|error| error.to_string())
 }
@@ -264,8 +264,7 @@ pub fn toggle(app: &AppHandle) -> Result<AgendaState, String> {
     app.emit("sticky:toggle", state.settings.enabled)
         .map_err(|error| error.to_string())?;
     if state.settings.enabled && state.agenda.sections.is_empty() {
-        app.emit("setup:requested", ())
-            .map_err(|error| error.to_string())?;
+        crate::setup::open(app)?;
     }
     Ok(state)
 }

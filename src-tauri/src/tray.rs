@@ -68,8 +68,8 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             &MenuItem::with_id(
                 app,
                 "sticky_setup",
-                "Waypoint sticky setup (coming soon)",
-                false,
+                "Waypoint sticky setup",
+                true,
                 None::<&str>,
             )?,
             &sticky,
@@ -117,6 +117,7 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             let id = event.id().as_ref();
             let result = match id {
                 TOGGLE_PANEL => windows::toggle_hotbar(app),
+                "sticky_setup" => crate::setup::open(app),
                 "sticky_toggle" => agenda::toggle(app).map(|_| ()),
                 CLICK_THROUGH => windows::toggle_click_through(app),
                 CLEAR | "undo" | "redo" => windows::end_text_edit(app).and_then(|()| {

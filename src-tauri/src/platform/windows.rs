@@ -51,3 +51,18 @@ pub fn end_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
 pub fn sample_color(_app: &tauri::AppHandle) -> Result<(), String> {
     Err("Use the web eyedropper on Windows".into())
 }
+
+pub fn configure_setup(window: &tauri::WebviewWindow, _level: Level) -> tauri::Result<()> {
+    window.set_always_on_top(true)
+}
+pub fn focus_setup(window: &tauri::WebviewWindow, remember: bool) -> Result<(), String> {
+    if remember {
+        PREVIOUS_WINDOW.store(unsafe { GetForegroundWindow() } as isize, Ordering::SeqCst);
+    }
+    window.set_focusable(true).map_err(|e| e.to_string())?;
+    window.show().map_err(|e| e.to_string())?;
+    window.set_focus().map_err(|e| e.to_string())
+}
+pub fn release_setup(window: &tauri::WebviewWindow) -> Result<(), String> {
+    end_text_edit(window)
+}
