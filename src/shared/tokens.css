@@ -1,0 +1,29 @@
+/* Design tokens. M1 fills in the full hotbar, sticky and setup values. */
+:root {
+  --wp-pink: #f0509a;
+  --wp-blue: #4fa3f7;
+  --wp-green: #5be36a;
+  --wp-accent: #ffd25a;
+
+  --wp-bar-bg: rgba(14, 16, 20, 0.94);
+  --wp-bar-border: rgba(255, 255, 255, 0.08);
+  --wp-bar-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  --wp-bar-radius: 14px;
+  --wp-button-radius: 10px;
+  --wp-close-bg: #262b33;
+  --wp-icon-idle: #d1d5db;
+  --wp-divider: #333a45;
+
+  --wp-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  overflow: hidden;
+  font-family: var(--wp-font);
+  -webkit-user-select: none;
+  user-select: none;
+}
