@@ -10,6 +10,7 @@ import { commands } from "../shared/ipc";
 import { annotationOutline, constrainEndpoint, hitTestSweep } from "./geometry";
 import { AnnotationHistory, type HistorySnapshot } from "./history";
 import { AnnotationRenderer, TEXT_FONT, TEXT_HEIGHT } from "./render";
+import type { Highlight, HighlightLayer } from "./highlight";
 
 export interface TextDraft {
   id: string;
@@ -22,6 +23,7 @@ export interface TextDraft {
 type Gesture =
   | { pointerId: number; type: "pen"; object: PenStroke }
   | { pointerId: number; type: "shape"; object: ShapeAnnotation }
+  | { pointerId: number; type: "highlight"; trail: Highlight }
   | { pointerId: number; type: "eraser"; last: Position; erased: Set<string> };
 
 export class DrawingController {
@@ -48,6 +50,7 @@ export class DrawingController {
     drawing: DrawingState,
     private onEditor: (editor: TextDraft | null) => void,
     private onError: (error: unknown) => void,
+    private highlights: HighlightLayer | null = null,
   ) {
     this.drawing = drawing;
     const ctx = canvas.getContext("2d");
@@ -59,7 +62,12 @@ export class DrawingController {
     const previous = this.drawing;
     this.drawing = drawing;
     this.ready = ready;
-    if (!drawing.armed || drawing.sampling || drawing.tool !== previous.tool)
+    if (
+      !drawing.armed ||
+      drawing.sampling ||
+      drawing.tool !== previous.tool ||
+      (drawing.tool === "highlighter" && !drawing.highlighting)
+    )
       this.finishGesture();
     if (
       this.editor &&
@@ -76,6 +84,7 @@ export class DrawingController {
     this.canvas.height = Math.round(
       window.innerHeight * window.devicePixelRatio,
     );
+    this.highlights?.resize();
     this.requestDraw();
   };
 
@@ -94,7 +103,8 @@ export class DrawingController {
       this.drawing.sampling
     )
       return;
-    this.markInput(event);
+    // Highlights draw on their own layer, so they never produce an annotation frame to time.
+    if (this.drawing.tool !== "highlighter") this.markInput(event);
     event.preventDefault();
     if (this.editor) {
       this.commitText();
@@ -104,6 +114,16 @@ export class DrawingController {
     const position: Position = [event.clientX, event.clientY];
     if (this.drawing.tool === "text") {
       this.startText(position);
+      return;
+    }
+    if (this.drawing.tool === "highlighter") {
+      if (!this.drawing.highlighting || !this.highlights) return;
+      this.canvas.setPointerCapture(event.pointerId);
+      this.gesture = {
+        type: "highlight",
+        pointerId: event.pointerId,
+        trail: this.highlights.start(this.drawing.color, ...position),
+      };
       return;
     }
     this.canvas.setPointerCapture(event.pointerId);
@@ -149,9 +169,15 @@ export class DrawingController {
   pointerMove = (event: PointerEvent): void => {
     const gesture = this.gesture;
     if (!gesture || gesture.pointerId !== event.pointerId) return;
-    this.markInput(event);
     const coalesced = event.getCoalescedEvents?.();
-    for (const sample of coalesced?.length ? coalesced : [event]) {
+    const samples = coalesced?.length ? coalesced : [event];
+    if (gesture.type === "highlight") {
+      for (const sample of samples)
+        this.highlights?.extend(gesture.trail, sample.clientX, sample.clientY);
+      return;
+    }
+    this.markInput(event);
+    for (const sample of samples) {
       const position: Position = [sample.clientX, sample.clientY];
       if (gesture.type === "pen")
         gesture.object.points.push([...position, sample.pressure]);
@@ -180,7 +206,8 @@ export class DrawingController {
     const gesture = this.gesture;
     if (!gesture) return;
     this.gesture = null;
-    if (gesture.type === "eraser") this.history.remove(gesture.erased);
+    if (gesture.type === "highlight") this.highlights?.end(gesture.trail);
+    else if (gesture.type === "eraser") this.history.remove(gesture.erased);
     else if (
       gesture.type === "pen" ||
       Math.hypot(
@@ -198,6 +225,7 @@ export class DrawingController {
     this.commitText();
     this.finishGesture();
     this.history.clear();
+    this.highlights?.clear();
     this.requestDraw();
   };
   undo = (): void => {
@@ -316,7 +344,7 @@ export class DrawingController {
       )
         this.renderer.draw(this.ctx, object);
     }
-    if (this.gesture && this.gesture.type !== "eraser")
+    if (this.gesture?.type === "pen" || this.gesture?.type === "shape")
       this.renderer.draw(this.ctx, this.gesture.object, false);
     if (this.inputTime !== null) {
       this.onInputFrame?.(performance.now() - this.inputTime);
@@ -328,6 +356,7 @@ export class DrawingController {
     this.disposed = true;
     this.editor = null;
     if (this.frame !== null) cancelAnimationFrame(this.frame);
+    this.highlights?.dispose();
     this.focusTask = this.focusTask
       .then(() => commands.endTextEdit())
       .catch(this.onError);

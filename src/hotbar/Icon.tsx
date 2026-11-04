@@ -1,5 +1,6 @@
 export type IconName =
   | "pen"
+  | "highlighter"
   | "arrow"
   | "rectangle"
   | "ellipse"
@@ -15,6 +16,13 @@ export function Icon({ name }: { name: IconName }) {
       <>
         <path d="m15 4 5 5M4 20l4.5-1L20 7.5a2.1 2.1 0 0 0-3-3L5.5 16Z" />
         <path d="m5.5 16 3.5 3" />
+      </>
+    ),
+    highlighter: (
+      <>
+        <path d="m9 11-4 4v2l-2 3h5l2-2h2l4-4" />
+        <path d="m9 11 6-7a2 2 0 0 1 3 0l2 2a2 2 0 0 1 0 3l-7 6Z" />
+        <path d="M14 20h7" />
       </>
     ),
     arrow: (

@@ -14,9 +14,9 @@ pub const HOTBAR: &str = "hotbar";
 pub const STICKY: &str = "sticky";
 pub const FLOATING: &[&str] = &[HOTBAR, STICKY];
 const WIDTH: f64 = if cfg!(all(target_os = "macos", not(feature = "native-eyedropper"))) {
-    794.0
-} else {
     844.0
+} else {
+    894.0
 };
 const HEIGHT: f64 = 112.0;
 const PICKER_HEIGHT: f64 = 384.0;
@@ -223,10 +223,13 @@ fn set_mode(app: &AppHandle, tool: Tool, armed: bool) -> Result<(), String> {
     end_text_edit(app)?;
     let state = app.state::<AppState>();
     let current = state.drawing.lock().unwrap().clone();
-    shortcuts::set_annotation_shortcuts(app, armed)?;
-    if let Err(error) = crate::displays::pointer_mode(app, armed && !crate::setup::is_open(app)) {
+    shortcuts::set_shortcuts_for(app, armed, tool)?;
+    let capture = armed
+        && !crate::setup::is_open(app)
+        && crate::displays::tool_captures(tool, false);
+    if let Err(error) = crate::displays::set_capture(app, capture) {
         let _ = crate::displays::pointer_mode(app, current.armed && !crate::setup::is_open(app));
-        let _ = shortcuts::set_annotation_shortcuts(app, current.armed);
+        let _ = shortcuts::set_shortcuts_for(app, current.armed, current.tool);
         return Err(error);
     }
     let cursor = if !armed {
@@ -245,12 +248,47 @@ fn set_mode(app: &AppHandle, tool: Tool, armed: bool) -> Result<(), String> {
         let mut drawing = state.drawing.lock().unwrap();
         drawing.tool = tool;
         drawing.armed = armed;
+        drawing.highlighting = false;
         drawing.revision += 1;
         drawing.clone()
     };
     tray_sync(app);
     app.emit("tool:changed", snapshot)
         .map_err(|e| e.to_string())
+}
+
+/// Hold-to-highlight: while the highlighter is armed, the overlays pass the pointer through
+/// until the hold key is pressed, and return to pass-through when it is released.
+pub fn set_highlighting(app: &AppHandle, active: bool) -> Result<(), String> {
+    let state = app.state::<AppState>();
+    {
+        let drawing = state.drawing.lock().unwrap();
+        if drawing.highlighting == active {
+            return Ok(());
+        }
+        if active
+            && (!drawing.armed
+                || drawing.tool != Tool::Highlighter
+                || drawing.sampling
+                || crate::setup::is_open(app))
+        {
+            return Ok(());
+        }
+    }
+    let result = crate::displays::set_capture(app, active);
+    let active = active && result.is_ok();
+    if !active {
+        let _ = crate::displays::set_capture(app, false);
+    }
+    let snapshot = {
+        let mut drawing = state.drawing.lock().unwrap();
+        drawing.highlighting = active;
+        drawing.revision += 1;
+        drawing.clone()
+    };
+    app.emit("tool:changed", snapshot)
+        .map_err(|e| e.to_string())?;
+    result
 }
 
 pub fn toggle_click_through(app: &AppHandle) -> Result<(), String> {
@@ -365,6 +403,7 @@ pub fn begin_sampling(app: &AppHandle) -> Result<(), String> {
     let snapshot = {
         let mut drawing = state.drawing.lock().unwrap();
         drawing.sampling = true;
+        drawing.highlighting = false;
         drawing.revision += 1;
         drawing.clone()
     };

@@ -6,6 +6,7 @@ window.addEventListener("message", ({ origin, data }) => {
     void emit(data.event, data.payload);
 });
 window.addEventListener("keydown", (event) => bridge.key(event));
+window.addEventListener("keyup", (event) => bridge.keyUp(event));
 mockIPC(
   (command, args) => {
     switch (command) {
@@ -92,6 +93,7 @@ mockIPC(
           tool: args.tool,
           armed: !bridge.state.armed || bridge.state.tool !== args.tool,
           editing: false,
+          highlighting: false,
         });
         break;
       case "set_color":

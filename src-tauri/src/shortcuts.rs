@@ -1,4 +1,4 @@
-use crate::{agenda, displays, windows};
+use crate::{agenda, displays, windows, AppState, Tool};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashSet},
@@ -15,7 +15,20 @@ use tauri_plugin_store::StoreExt;
 const DRAWING_SHORTCUTS: [&str; 3] = ["Escape", "super+KeyZ", "super+shift+KeyZ"];
 #[cfg(target_os = "windows")]
 const DRAWING_SHORTCUTS: [&str; 3] = ["Escape", "ctrl+KeyZ", "ctrl+shift+KeyZ"];
+/// Held (not pressed) while the highlighter is armed. Only registered while the highlighter is
+/// armed, because an unmodified global key is unavailable to every other app while registered.
+pub const HIGHLIGHT_KEY: &str = "KeyH";
 const KEY: &str = "shortcuts";
+
+/// Annotation keys for a tool. The highlighter leaves the presenting app's undo/redo alone,
+/// since the pointer keeps working there until the hold key is down.
+fn annotation_bindings(tool: Tool) -> &'static [&'static str] {
+    if tool == Tool::Highlighter {
+        &[DRAWING_SHORTCUTS[0], HIGHLIGHT_KEY]
+    } else {
+        &DRAWING_SHORTCUTS
+    }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Action {
@@ -211,10 +224,17 @@ fn replace_binding(
 }
 
 pub fn set_annotation_shortcuts(app: &AppHandle, enabled: bool) -> Result<(), String> {
+    let tool = app.state::<AppState>().drawing.lock().unwrap().tool;
+    set_shortcuts_for(app, enabled, tool)
+}
+
+pub fn set_shortcuts_for(app: &AppHandle, enabled: bool, tool: Tool) -> Result<(), String> {
     let enabled = enabled && !crate::setup::is_open(app);
+    let wanted = annotation_bindings(tool);
     let shortcuts = app.global_shortcut();
     let mut changed = Vec::new();
-    for binding in DRAWING_SHORTCUTS {
+    for binding in DRAWING_SHORTCUTS.into_iter().chain([HIGHLIGHT_KEY]) {
+        let enabled = enabled && wanted.contains(&binding);
         if shortcuts.is_registered(binding) == enabled {
             continue;
         }
@@ -224,7 +244,7 @@ pub fn set_annotation_shortcuts(app: &AppHandle, enabled: bool) -> Result<(), St
             shortcuts.unregister(binding)
         };
         if let Err(error) = result {
-            for previous in changed.into_iter().rev() {
+            for (previous, enabled) in changed.into_iter().rev() {
                 let rollback = if enabled {
                     shortcuts.unregister(previous)
                 } else {
@@ -239,7 +259,7 @@ pub fn set_annotation_shortcuts(app: &AppHandle, enabled: bool) -> Result<(), St
                 if enabled { "register" } else { "release" }
             ));
         }
-        changed.push(binding);
+        changed.push((binding, enabled));
     }
     Ok(())
 }
@@ -247,6 +267,15 @@ pub fn set_annotation_shortcuts(app: &AppHandle, enabled: bool) -> Result<(), St
 pub fn plugin() -> TauriPlugin<Wry> {
     Builder::new()
         .with_handler(|app, shortcut, event| {
+            if shortcut.mods.is_empty() && shortcut.key == tauri_plugin_global_shortcut::Code::KeyH
+            {
+                let pressed = event.state() == ShortcutState::Pressed;
+                if let Err(error) = windows::set_highlighting(app, pressed) {
+                    eprintln!("[highlighter] {error}");
+                    let _ = app.emit("app:error", error);
+                }
+                return;
+            }
             if event.state() != ShortcutState::Pressed {
                 return;
             }
@@ -350,6 +379,15 @@ mod tests {
         assert!(validate(&bindings)
             .unwrap_err()
             .contains("already assigned"));
+    }
+    #[test]
+    fn highlighter_holds_its_key_and_leaves_undo_to_the_presenting_app() {
+        assert_eq!(
+            annotation_bindings(Tool::Highlighter),
+            &["Escape", HIGHLIGHT_KEY]
+        );
+        assert!(!annotation_bindings(Tool::Pen).contains(&HIGHLIGHT_KEY));
+        assert_eq!(annotation_bindings(Tool::Pen), &DRAWING_SHORTCUTS);
     }
     #[test]
     fn reserved_and_unmodified_keys_are_rejected() {

@@ -27,6 +27,7 @@ const snapshot = (
   armed,
   editing: false,
   sampling: false,
+  highlighting: false,
   color,
   revision,
 });

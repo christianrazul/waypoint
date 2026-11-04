@@ -27,6 +27,7 @@ const bridge = {
     armed: false,
     editing: false,
     sampling: false,
+    highlighting: false,
     color: "#F0509A",
     revision: 0,
   },
@@ -125,7 +126,10 @@ const bridge = {
       return;
     }
     if (this.setupOpen || !this.state.armed || this.state.editing) return;
-    if (event.key === "Escape") {
+    if (this.holdsHighlight(event)) {
+      event.preventDefault();
+      if (!this.state.highlighting) this.update({ highlighting: true });
+    } else if (event.key === "Escape") {
       event.preventDefault();
       this.update({ armed: false });
     } else if (
@@ -141,6 +145,20 @@ const bridge = {
     }
   },
 };
+bridge.holdsHighlight = function (event) {
+  return (
+    this.state.tool === "highlighter" &&
+    event.code === "KeyH" &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !event.shiftKey
+  );
+};
+bridge.keyUp = function (event) {
+  if (event.code === "KeyH" && this.state.highlighting)
+    this.update({ highlighting: false });
+};
 window.waypointPreview = bridge;
 for (const view of ["overlay", "hotbar", "sticky", "setup"]) {
   const frame = document.createElement("iframe");
@@ -155,6 +173,7 @@ for (const action of ["undo", "redo", "clear"])
     bridge.emit(`annotations:${action}`, null, bridge.activeOverlay);
   };
 window.addEventListener("keydown", (event) => bridge.key(event));
+window.addEventListener("keyup", (event) => bridge.keyUp(event));
 
 document.getElementById("sticky").style.visibility = bridge.agenda.settings
   .enabled

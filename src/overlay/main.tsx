@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { commands, on } from "../shared/ipc";
 import { connectDrawingState, useAppStore } from "../shared/store";
 import { DrawingController, type TextDraft } from "./controller";
+import { HighlightLayer } from "./highlight";
 import { OverlaySessions } from "./sessions";
 import { TEXT_FONT, TEXT_HEIGHT } from "./render";
 import "../shared/tokens.css";
@@ -11,6 +12,7 @@ import "../shared/tokens.css";
 function Overlay() {
   useEffect(connectSetupDismissal, []);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const highlightRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const controllerRef = useRef<DrawingController | null>(null);
   const [editor, setEditor] = useState<TextDraft | null>(null);
@@ -24,6 +26,7 @@ function Overlay() {
       useAppStore.getState().drawing,
       setEditor,
       useAppStore.getState().reportError,
+      new HighlightLayer(highlightRef.current!),
     );
     if (import.meta.env.DEV && location.pathname.startsWith("/dev/"))
       controller.onInputFrame = (milliseconds) =>
@@ -116,6 +119,17 @@ function Overlay() {
 
   return (
     <>
+      <canvas
+        ref={highlightRef}
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          width: "100vw",
+          height: "100vh",
+          pointerEvents: "none",
+        }}
+      />
       <canvas
         ref={canvasRef}
         aria-label="Screen annotations"
