@@ -240,3 +240,42 @@
   font: 600 12px var(--wp-font);
   cursor: pointer;
 }
+
+.sticky:not(.editing) {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.sticky-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.sticky-editor textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 160px;
+  padding: 10px 12px;
+  border: 1px solid var(--note-rule, rgba(255, 255, 255, 0.18));
+  border-radius: 8px;
+  background: var(--note-code, rgba(0, 0, 0, 0.18));
+  color: var(--note-item, #f2f4f7);
+  font:
+    12.5px/1.55 ui-monospace,
+    "SF Mono",
+    Menlo,
+    monospace;
+  tab-size: 2;
+  resize: none;
+  overflow-y: auto;
+  outline: none;
+  caret-color: var(--sticky-accent, #ffd25a);
+}
+.sticky-editor textarea:focus {
+  border-color: var(--sticky-accent, #ffd25a);
+}
+.sticky-editor textarea::placeholder {
+  color: var(--note-muted, #7a828e);
+}
+.checklist-row > span {
+  flex: 1;
+}

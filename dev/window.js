@@ -58,6 +58,9 @@ mockIPC(
         break;
       case "edit_agenda":
         return bridge.editAgenda(args.edit);
+      case "begin_sticky_edit":
+      case "end_sticky_edit":
+        break;
       case "start_sticky_drag":
         startStickyDrag();
         break;

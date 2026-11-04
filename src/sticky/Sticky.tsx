@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import { useId, useRef } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { AgendaState } from "../shared/types";
 import {
   allChecked,
@@ -21,6 +22,58 @@ export function InlineText({ text }: { text: string }) {
   );
 }
 
+/** Delay before a click on item text toggles it, so a double-click can open the editor. */
+const TOGGLE_DELAY = 220;
+
+function ChecklistRow({
+  item,
+  busy,
+  onToggle,
+}: {
+  item: AgendaState["agenda"]["sections"][number]["items"][number];
+  busy: boolean;
+  onToggle: (done: boolean) => void;
+}) {
+  const id = useId();
+  const timer = useRef<ReturnType<typeof setTimeout>>();
+  return (
+    <li>
+      <div className={`checklist-row ${item.done ? "done" : ""}`}>
+        <input
+          type="checkbox"
+          aria-labelledby={id}
+          checked={item.done}
+          disabled={busy}
+          onChange={(event) => onToggle(event.currentTarget.checked)}
+        />
+        <span
+          id={id}
+          onClick={(event) => {
+            clearTimeout(timer.current);
+            if (event.detail === 1 && !busy)
+              timer.current = setTimeout(
+                () => onToggle(!item.done),
+                TOGGLE_DELAY,
+              );
+          }}
+        >
+          {item.optional && <em>Optional: </em>}
+          <InlineText text={item.text} />
+        </span>
+      </div>
+      {!item.done && item.details.length > 0 && (
+        <div className="item-details">
+          {item.details.map((detail, index) => (
+            <div key={index}>
+              <InlineText text={detail} />
+            </div>
+          ))}
+        </div>
+      )}
+    </li>
+  );
+}
+
 export function Sticky({
   state,
   busy,
@@ -30,6 +83,8 @@ export function Sticky({
   onNavigate,
   onDrag,
   onSetup,
+  onEdit,
+  editor,
 }: {
   state: AgendaState;
   busy: ReadonlySet<string>;
@@ -39,6 +94,10 @@ export function Sticky({
   onNavigate: (direction: "previous" | "next") => void;
   onDrag?: () => void;
   onSetup?: () => void;
+  /** Double-click anywhere on the note (except its controls) to edit the agenda inline. */
+  onEdit?: () => void;
+  /** When set, the sticky is in edit mode and shows this instead of the checklist. */
+  editor?: ReactNode;
 }) {
   const section = currentSection(state);
   const complete = section ? allChecked(section) : false;
@@ -54,9 +113,21 @@ export function Sticky({
   } as CSSProperties;
   return (
     <section
-      className={`sticky sticky-${state.settings.style}`}
+      className={`sticky sticky-${state.settings.style}${editor ? " editing" : ""}`}
       aria-label="Waypoint agenda"
       style={style}
+      onMouseDown={(event) => {
+        // Keep double-clicks from selecting words.
+        if (!editor && event.detail > 1) event.preventDefault();
+      }}
+      onDoubleClick={(event) => {
+        if (
+          editor ||
+          (event.target as Element).closest("button, input, .sticky-header")
+        )
+          return;
+        onEdit?.();
+      }}
     >
       <header
         className="sticky-header"
@@ -68,94 +139,85 @@ export function Sticky({
           }
         }}
       >
-        <span>YOU ARE HERE</span>
+        <span>{editor ? "EDITING AGENDA" : "YOU ARE HERE"}</span>
         <span>
-          Step {section ? state.agenda.currentIndex + 1 : 0} /{" "}
-          {state.agenda.sections.length}
+          {editor
+            ? "Markdown"
+            : `Step ${section ? state.agenda.currentIndex + 1 : 0} / ${state.agenda.sections.length}`}
         </span>
       </header>
-      <div className="sticky-title-row">
-        <h1 className={complete ? "complete" : ""}>
-          {section?.title ?? "No agenda sections yet"}
-        </h1>
-        {complete && <span className="all-checked">All checked</span>}
-      </div>
-      {section && section.items.length > 0 && (
-        <div
-          className="progress"
-          role="img"
-          aria-label={`${section.items.filter((item) => item.done).length} of ${section.items.length} items checked`}
-        >
-          {section.items.map((item) => (
-            <span key={item.id} className={item.done ? "done" : ""} />
-          ))}
-        </div>
-      )}
-      {section && section.items.length > 0 && !state.settings.compact && (
-        <ul className="checklist">
-          {section.items.map((item) => (
-            <li key={item.id}>
-              <label className={`checklist-row ${item.done ? "done" : ""}`}>
-                <input
-                  type="checkbox"
-                  checked={item.done}
-                  disabled={busy.has(item.id)}
-                  onChange={(event) =>
-                    onDone(section.id, item.id, event.currentTarget.checked)
-                  }
-                />
-                <span>
-                  {item.optional && <em>Optional: </em>}
-                  <InlineText text={item.text} />
-                </span>
-              </label>
-              {!item.done && item.details.length > 0 && (
-                <div className="item-details">
-                  {item.details.map((detail, index) => (
-                    <div key={index}>
-                      <InlineText text={detail} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {!section && (
-        <p className="empty-agenda">
-          Add sections and checklist items in setup.
-          {onSetup && (
-            <button className="empty-setup" onClick={onSetup}>
-              Open setup
-            </button>
+      {editor}
+      {!editor && (
+        <>
+          <div className="sticky-title-row">
+            <h1 className={complete ? "complete" : ""}>
+              {section?.title ?? "No agenda sections yet"}
+            </h1>
+            {complete && <span className="all-checked">All checked</span>}
+          </div>
+          {section && section.items.length > 0 && (
+            <div
+              className="progress"
+              role="img"
+              aria-label={`${section.items.filter((item) => item.done).length} of ${section.items.length} items checked`}
+            >
+              {section.items.map((item) => (
+                <span key={item.id} className={item.done ? "done" : ""} />
+              ))}
+            </div>
           )}
-        </p>
+          {section && section.items.length > 0 && !state.settings.compact && (
+            <ul className="checklist">
+              {section.items.map((item) => (
+                <ChecklistRow
+                  key={item.id}
+                  item={item}
+                  busy={busy.has(item.id)}
+                  onToggle={(done) => onDone(section.id, item.id, done)}
+                />
+              ))}
+            </ul>
+          )}
+          {!section && (
+            <p className="empty-agenda">
+              {onEdit
+                ? "Double-click to write your agenda, or paste an outline."
+                : "Add sections and checklist items in setup."}
+              {onSetup && (
+                <button className="empty-setup" onClick={onSetup}>
+                  Open setup
+                </button>
+              )}
+            </p>
+          )}
+        </>
       )}
-      <footer className="sticky-footer">
-        <button
-          onClick={() => onNavigate("previous")}
-          disabled={!section || state.agenda.currentIndex === 0}
-        >
-          ← Prev
-        </button>
-        <span
-          className="next-hint"
-          title={section ? nextSectionHint(state) : ""}
-        >
-          {section ? nextSectionHint(state) : "No sections"}
-        </span>
-        <button
-          className="next-button"
-          onClick={() => onNavigate("next")}
-          disabled={
-            !section ||
-            state.agenda.currentIndex >= state.agenda.sections.length - 1
-          }
-        >
-          Next →
-        </button>
-      </footer>
+      {!editor && (
+        <footer className="sticky-footer">
+          <button
+            onClick={() => onNavigate("previous")}
+            disabled={!section || state.agenda.currentIndex === 0}
+          >
+            ← Prev
+          </button>
+          <span
+            className="next-hint"
+            title={section ? nextSectionHint(state) : ""}
+          >
+            {section ? nextSectionHint(state) : "No sections"}
+          </span>
+          <button
+            className="next-button"
+            onClick={() => onNavigate("next")}
+            disabled={
+              !section ||
+              state.agenda.currentIndex >= state.agenda.sections.length - 1
+            }
+          >
+            Next →
+          </button>
+        </footer>
+      )}
       {error && (
         <div className="sticky-error" role="alert">
           {error}

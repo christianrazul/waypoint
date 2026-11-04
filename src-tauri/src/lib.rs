@@ -224,6 +224,14 @@ fn close_setup(app: AppHandle) -> Result<(), String> {
     setup::close(&app)
 }
 #[tauri::command]
+fn begin_sticky_edit(app: AppHandle) -> Result<(), String> {
+    windows::begin_sticky_edit(&app)
+}
+#[tauri::command]
+fn end_sticky_edit(app: AppHandle) -> Result<(), String> {
+    windows::end_sticky_edit(&app)
+}
+#[tauri::command]
 fn start_sticky_drag(app: AppHandle) -> Result<(), String> {
     windows::start_sticky_drag(&app)
 }
@@ -316,6 +324,8 @@ pub fn run() {
             set_agenda_item_done,
             resize_sticky,
             edit_agenda,
+            begin_sticky_edit,
+            end_sticky_edit,
             open_setup,
             close_setup,
             request_setup_close,

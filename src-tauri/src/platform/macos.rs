@@ -14,6 +14,8 @@ pub fn active_spaces(monitors: &[tauri::Monitor]) -> Result<Vec<String>, String>
 }
 
 static TEXT_EDITING: AtomicBool = AtomicBool::new(false);
+static STICKY_EDITING: AtomicBool = AtomicBool::new(false);
+static STICKY_PREVIOUS_APP: AtomicI32 = AtomicI32::new(0);
 static SETUP_PREVIOUS_APP: AtomicI32 = AtomicI32::new(0);
 static PREVIOUS_APP: AtomicI32 = AtomicI32::new(0);
 
@@ -28,6 +30,13 @@ tauri_panel! {
     panel!(SetupPanel {
         config: {
             can_become_key_window: true,
+            can_become_main_window: false,
+            is_floating_panel: true
+        }
+    })
+    panel!(StickyPanel {
+        config: {
+            can_become_key_window: STICKY_EDITING.load(Ordering::SeqCst),
             can_become_main_window: false,
             is_floating_panel: true
         }
@@ -95,11 +104,17 @@ fn behavior() -> CollectionBehavior {
         .ignores_cycle()
 }
 
-fn to_panel(window: &tauri::WebviewWindow, level: i64, overlay: bool) -> tauri::Result<()> {
-    let panel = if overlay {
-        window.to_panel::<OverlayPanel>()?
-    } else {
-        window.to_panel::<FloatingPanel>()?
+enum Kind {
+    Overlay,
+    Sticky,
+    Floating,
+}
+
+fn to_panel(window: &tauri::WebviewWindow, level: i64, kind: Kind) -> tauri::Result<()> {
+    let panel = match kind {
+        Kind::Overlay => window.to_panel::<OverlayPanel>()?,
+        Kind::Sticky => window.to_panel::<StickyPanel>()?,
+        Kind::Floating => window.to_panel::<FloatingPanel>()?,
     };
     panel
         .add_style_mask(StyleMask::empty().nonactivating_panel().into())
@@ -113,11 +128,16 @@ fn to_panel(window: &tauri::WebviewWindow, level: i64, overlay: bool) -> tauri::
 }
 
 pub fn configure_overlay(window: &tauri::WebviewWindow, level: Level) -> tauri::Result<()> {
-    to_panel(window, raw_level(level), true)
+    to_panel(window, raw_level(level), Kind::Overlay)
 }
 
 pub fn configure_floating(window: &tauri::WebviewWindow, level: Level) -> tauri::Result<()> {
-    to_panel(window, raw_level(level) + 1, false)
+    let kind = if window.label() == crate::windows::STICKY {
+        Kind::Sticky
+    } else {
+        Kind::Floating
+    };
+    to_panel(window, raw_level(level) + 1, kind)
 }
 
 pub fn configure_setup(window: &tauri::WebviewWindow, level: Level) -> tauri::Result<()> {
@@ -190,32 +210,58 @@ pub fn show_without_focus(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     Ok(())
 }
 
-pub fn begin_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+/// Lets a normally keyless panel take keyboard focus until `release_key`, remembering which
+/// app was frontmost so focus can go back to the presentation afterwards.
+fn take_key(
+    window: &tauri::WebviewWindow,
+    editing: &AtomicBool,
+    previous_app: &AtomicI32,
+) -> Result<(), String> {
     let panel = window
         .app_handle()
         .get_webview_panel(window.label())
-        .map_err(|_| "Annotation panel is unavailable".to_owned())?;
+        .map_err(|_| "Editor panel is unavailable".to_owned())?;
     let previous = NSWorkspace::sharedWorkspace().frontmostApplication();
-    PREVIOUS_APP.store(
+    previous_app.store(
         previous.map(|app| app.processIdentifier()).unwrap_or(0),
         Ordering::SeqCst,
     );
-    TEXT_EDITING.store(true, Ordering::SeqCst);
+    editing.store(true, Ordering::SeqCst);
     panel.make_key_window();
     if !panel.as_panel().isKeyWindow() {
-        TEXT_EDITING.store(false, Ordering::SeqCst);
-        PREVIOUS_APP.store(0, Ordering::SeqCst);
+        editing.store(false, Ordering::SeqCst);
+        previous_app.store(0, Ordering::SeqCst);
         return Err("The text editor could not receive keyboard focus".into());
     }
     Ok(())
 }
 
-pub fn end_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
-    TEXT_EDITING.store(false, Ordering::SeqCst);
+fn release_key(
+    window: &tauri::WebviewWindow,
+    editing: &AtomicBool,
+    previous_app: &AtomicI32,
+) -> Result<(), String> {
+    editing.store(false, Ordering::SeqCst);
     if let Ok(panel) = window.app_handle().get_webview_panel(window.label()) {
         panel.resign_key_window();
     }
-    restore_app(PREVIOUS_APP.swap(0, Ordering::SeqCst))
+    restore_app(previous_app.swap(0, Ordering::SeqCst))
+}
+
+pub fn begin_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    take_key(window, &TEXT_EDITING, &PREVIOUS_APP)
+}
+
+pub fn end_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    release_key(window, &TEXT_EDITING, &PREVIOUS_APP)
+}
+
+pub fn begin_sticky_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    take_key(window, &STICKY_EDITING, &STICKY_PREVIOUS_APP)
+}
+
+pub fn end_sticky_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    release_key(window, &STICKY_EDITING, &STICKY_PREVIOUS_APP)
 }
 
 fn restore_app(pid: i32) -> Result<(), String> {

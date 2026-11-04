@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "sticky",
-  "description": "Agenda sticky: reads agenda, updates checklist, navigates sections, and sizes only its own window.",
+  "description": "Agenda sticky: reads and edits the agenda inline, updates checklist, navigates sections, and sizes only its own window.",
   "windows": [
     "sticky"
   ],
@@ -17,6 +17,9 @@
     "allow-navigate-agenda",
     "allow-resize-sticky",
     "allow-start-sticky-drag",
+    "allow-edit-agenda",
+    "allow-begin-sticky-edit",
+    "allow-end-sticky-edit",
     "allow-open-setup",
     "allow-request-setup-close",
     "allow-get-shortcuts"

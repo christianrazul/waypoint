@@ -28,6 +28,7 @@ const STICKY_MARGIN: f64 = 48.0;
 pub struct StickyLayout {
     height: Mutex<Option<f64>>,
     dragging: AtomicBool,
+    editing: AtomicBool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -224,9 +225,8 @@ fn set_mode(app: &AppHandle, tool: Tool, armed: bool) -> Result<(), String> {
     let state = app.state::<AppState>();
     let current = state.drawing.lock().unwrap().clone();
     shortcuts::set_shortcuts_for(app, armed, tool)?;
-    let capture = armed
-        && !crate::setup::is_open(app)
-        && crate::displays::tool_captures(tool, false);
+    let capture =
+        armed && !crate::setup::is_open(app) && crate::displays::tool_captures(tool, false);
     if let Err(error) = crate::displays::set_capture(app, capture) {
         let _ = crate::displays::pointer_mode(app, current.armed && !crate::setup::is_open(app));
         let _ = shortcuts::set_shortcuts_for(app, current.armed, current.tool);
@@ -318,6 +318,7 @@ pub fn begin_text_edit(app: &AppHandle, label: &str) -> Result<(), String> {
     if !current.armed || current.tool != Tool::Text || current.sampling {
         return Err("Select the text tool before typing".into());
     }
+    end_sticky_edit(app)?;
     let overlay = app
         .get_webview_window(label)
         .ok_or("Annotation overlay is unavailable")?;
@@ -518,6 +519,58 @@ pub fn create_sticky(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         }
     });
     Ok(window)
+}
+
+pub fn begin_sticky_edit(app: &AppHandle) -> Result<(), String> {
+    let layout = app.state::<StickyLayout>();
+    if layout.editing.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+    if crate::setup::is_open(app) {
+        return Err("Close setup before editing the sticky".into());
+    }
+    end_text_edit(app)?;
+    // The hold key's key-up would go to the sticky while it has focus.
+    set_highlighting(app, false)?;
+    let window = app
+        .get_webview_window(STICKY)
+        .ok_or("The sticky window is unavailable")?;
+    shortcuts::set_annotation_shortcuts(app, false)?;
+    layout.editing.store(true, Ordering::SeqCst);
+    if let Err(error) = platform::begin_sticky_edit(&window) {
+        layout.editing.store(false, Ordering::SeqCst);
+        restore_annotation_shortcuts(app);
+        return Err(error);
+    }
+    Ok(())
+}
+
+pub fn end_sticky_edit(app: &AppHandle) -> Result<(), String> {
+    if !app
+        .state::<StickyLayout>()
+        .editing
+        .swap(false, Ordering::SeqCst)
+    {
+        return Ok(());
+    }
+    let focus = match app.get_webview_window(STICKY) {
+        Some(window) => platform::end_sticky_edit(&window),
+        None => Ok(()),
+    };
+    restore_annotation_shortcuts(app);
+    focus
+}
+
+fn restore_annotation_shortcuts(app: &AppHandle) {
+    let current = app.state::<AppState>().drawing.lock().unwrap().clone();
+    if shortcuts::set_annotation_shortcuts(
+        app,
+        current.armed && !current.editing && !current.sampling,
+    )
+    .is_err()
+    {
+        let _ = set_click_through(app, true);
+    }
 }
 
 pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
