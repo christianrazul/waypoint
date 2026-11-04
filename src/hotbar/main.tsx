@@ -12,6 +12,7 @@ import {
   type CSSProperties,
 } from "react";
 import { createRoot } from "react-dom/client";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { commands } from "../shared/ipc";
 import {
   connectAgendaState,
@@ -131,17 +132,15 @@ function Hotbar() {
         role="toolbar"
         aria-label="Waypoint drawing tools"
         onContextMenu={(e) => e.preventDefault()}
+        onMouseDown={(event) => {
+          if (event.button !== 0) return;
+          const target = event.target as Element;
+          if (target.closest("button, input, select, textarea, a, [role=slider]"))
+            return;
+          event.preventDefault();
+          void getCurrentWindow().startDragging();
+        }}
       >
-        <div
-          className="grip"
-          data-tauri-drag-region
-          title="Drag toolbar"
-          aria-label="Drag toolbar"
-        >
-          {Array.from({ length: 6 }, (_, i) => (
-            <i key={i} data-tauri-drag-region />
-          ))}
-        </div>
         <div className="button-group" role="group" aria-label="Colors">
           {COLORS.map(({ label, color }) => (
             <button
