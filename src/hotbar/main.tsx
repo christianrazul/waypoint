@@ -220,7 +220,6 @@ function Hotbar() {
           }}
         >
           <Icon name="note" />
-          Sticky
         </button>
         <button
           className={`icon-button ${drawing.armed && drawing.tool === "eraser" ? "active" : ""}`}
