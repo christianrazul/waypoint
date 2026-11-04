@@ -11,6 +11,8 @@ const TOGGLE_PANEL: &str = "toggle_panel";
 const CLICK_THROUGH: &str = "click_through";
 const CLEAR: &str = "clear";
 const QUIT: &str = "quit";
+#[cfg(target_os = "macos")]
+const CHECK_UPDATES: &str = "check_updates";
 
 /// Menu items whose checked state mirrors app state.
 pub struct TrayItems {
@@ -79,6 +81,14 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
             &MenuItem::with_id(app, "redo", "Redo annotation", true, None::<&str>)?,
             &MenuItem::with_id(app, CLEAR, "Clear annotations", true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
+            #[cfg(target_os = "macos")]
+            &MenuItem::with_id(
+                app,
+                CHECK_UPDATES,
+                "Check for updates…",
+                true,
+                None::<&str>,
+            )?,
             &MenuItem::with_id(
                 app,
                 QUIT,
@@ -128,6 +138,11 @@ pub fn create(app: &AppHandle) -> tauri::Result<()> {
                         _ => "annotations:clear",
                     },
                 ),
+                #[cfg(target_os = "macos")]
+                CHECK_UPDATES => {
+                    crate::updates::check(app);
+                    Ok(())
+                }
                 QUIT => {
                     app.exit(0);
                     Ok(())

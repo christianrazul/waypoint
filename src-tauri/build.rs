@@ -1,4 +1,15 @@
 fn main() {
+    // Bake the commit this build came from into the binary for "Check for updates".
+    let sha = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+        .unwrap_or_default();
+    println!("cargo:rustc-env=WAYPOINT_GIT_SHA={sha}");
+    println!("cargo:rerun-if-changed=../.git/HEAD");
+    println!("cargo:rerun-if-changed=../.git/refs/heads");
     // Declaring the app's commands here makes Tauri generate `allow-<command>` permissions
     // and deny them by default, so each window gets only what its capability file grants.
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(

@@ -6,6 +6,8 @@ mod sessions;
 mod setup;
 mod shortcuts;
 mod tray;
+#[cfg(target_os = "macos")]
+mod updates;
 mod windows;
 
 use serde::{Deserialize, Serialize};

@@ -155,6 +155,10 @@ There is no Dock/taskbar window: use the tray/menu bar icon. Existing settings a
 when replacing the app. Current local artifacts have no trusted publisher notarization/signature;
 see [packaging](docs/packaging.md) before distributing them.
 
+To update an installed copy on macOS, use **Check for updates…** in the menu bar menu (it
+compares the build's commit with `main` on GitHub and offers to run the update), or run
+`./scripts/update-macos.sh` (pull, rebuild, replace `/Applications/Waypoint.app`, relaunch).
+
 ```bash
 ./scripts/package-macos.sh
 # On Windows:
