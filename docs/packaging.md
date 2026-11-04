@@ -60,7 +60,12 @@ The legacy `macOSPrivateApi` setting remains true in this project, but it is a
 The pinned Wry source still uses private `drawsBackground` / `fullScreenEnabled`
 KVC keys for this implementation. Treat this as a direct-distribution build,
 unsuitable for Mac App Store submission. Turning the flag off does not remove
-those calls. A Store build would require a public-API implementation and review.
+those calls. Space-scoped annotations additionally use dynamically loaded private
+SkyLight read APIs, explicitly approved for this project. Those symbols and their
+returned data can change after a macOS update; missing/invalid lookup results suspend
+annotations and report an error. They do not switch Spaces, inject into Dock, disable
+SIP, or request Accessibility/Screen Recording access. A Store build would require a
+public-API implementation and review.
 [Tauri configuration](https://v2.tauri.app/reference/config/#macosprivateapi),
 [Apple guideline 2.5.1](https://developer.apple.com/app-store/review/guidelines/#software-requirements).
 

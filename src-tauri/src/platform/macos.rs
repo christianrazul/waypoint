@@ -7,6 +7,11 @@ use tauri::{ActivationPolicy, Manager};
 use tauri_nspanel::{tauri_panel, CollectionBehavior, ManagerExt, StyleMask, WebviewWindowExt};
 
 use super::Level;
+mod spaces;
+
+pub fn active_spaces(monitors: &[tauri::Monitor]) -> Result<Vec<String>, String> {
+    spaces::active(monitors)
+}
 
 static TEXT_EDITING: AtomicBool = AtomicBool::new(false);
 static SETUP_PREVIOUS_APP: AtomicI32 = AtomicI32::new(0);
@@ -263,6 +268,7 @@ pub fn sample_color(_app: &tauri::AppHandle) -> Result<(), String> {
 
 thread_local! {
     static SCREEN_OBSERVER: std::cell::RefCell<Option<objc2::rc::Retained<objc2::runtime::ProtocolObject<dyn objc2_foundation::NSObjectProtocol>>>> = const { std::cell::RefCell::new(None) };
+    static SPACE_OBSERVER: std::cell::RefCell<Option<objc2::rc::Retained<objc2::runtime::ProtocolObject<dyn objc2_foundation::NSObjectProtocol>>>> = const { std::cell::RefCell::new(None) };
 }
 pub fn watch_displays(app: &tauri::AppHandle) -> tauri::Result<()> {
     use objc2_foundation::NSNotificationCenter;
@@ -281,9 +287,35 @@ pub fn watch_displays(app: &tauri::AppHandle) -> tauri::Result<()> {
         )
     };
     SCREEN_OBSERVER.with(|slot| *slot.borrow_mut() = Some(observer));
+    let handle = app.clone();
+    let callback = block2::RcBlock::new(
+        move |_notification: std::ptr::NonNull<objc2_foundation::NSNotification>| {
+            crate::displays::request_session_refresh(&handle);
+        },
+    );
+    let observer = unsafe {
+        NSWorkspace::sharedWorkspace()
+            .notificationCenter()
+            .addObserverForName_object_queue_usingBlock(
+                Some(objc2_app_kit::NSWorkspaceActiveSpaceDidChangeNotification),
+                None,
+                None,
+                &callback,
+            )
+    };
+    SPACE_OBSERVER.with(|slot| *slot.borrow_mut() = Some(observer));
     Ok(())
 }
 pub fn stop_display_watch() {
+    SPACE_OBSERVER.with(|slot| {
+        if let Some(observer) = slot.borrow_mut().take() {
+            unsafe {
+                NSWorkspace::sharedWorkspace()
+                    .notificationCenter()
+                    .removeObserver(AsRef::<objc2::runtime::AnyObject>::as_ref(&*observer));
+            }
+        }
+    });
     SCREEN_OBSERVER.with(|slot| {
         if let Some(observer) = slot.borrow_mut().take() {
             unsafe {

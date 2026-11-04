@@ -6,11 +6,15 @@ Screen annotation and agenda sticky for presenters. Tauri 2 + React 18.
 
 M5 implementation is ready for validation: overlays per display, native display-change
 notifications, Primary / Cursor placement, configurable shortcuts, and release packaging.
+On macOS, annotation sessions are scoped to each display and Space; the hotbar and
+agenda sticky remain available across Spaces. Native A/B Space isolation and restoration
+were confirmed, along with restoration and keyboard focus in one full-screen slideshow
+scenario. The remaining acceptance checks are pending.
 Annotations and history stay in memory per display, including completed-session restoration
 after reconnecting a display. The macOS eyedropper remains behind its M2 feature flag.
 
-M5 is **not accepted yet**: Windows slideshow behavior and physical monitor hot-plug need
-manual review; native Retina latency remains unverified, and the measured total memory
+M5 is **not accepted yet**: Windows slideshow behavior and the remaining hot-plug
+variants need manual review; idle unplug/reconnect was confirmed on this Mac; native Retina latency remains unverified, and the measured total memory
 footprint exceeds the 150 MB target. See [M5 verification](docs/m5-verification.md) for the
 results and outstanding checks. [Packaging notes](docs/packaging.md) cover installers,
 Developer ID signing, notarization, and distribution limitations.
@@ -86,7 +90,11 @@ the hotbar leaves the sticky visible.
 
 Changing colors does not arm drawing or recolor existing annotations. Strokes and history stay in memory during pass-through and after hiding
 the hotbar. Completed annotations and history survive display reconnects during the same run;
-they disappear on quit. In-progress gestures are not a saved session. Inter fonts ship locally; no runtime network is needed.
+they disappear on quit. On macOS, changing Spaces saves the departing history and restores
+that display's history for the destination Space, including undo/redo. The same overlay
+webviews are reused. Space changes finish the current gesture/text edit; drawings are hidden
+and input pauses until the destination session is ready. On Windows, history remains scoped
+per display. In-progress gestures are not a saved reconnect session. Inter fonts ship locally; no runtime network is needed.
 
 ## Architecture
 
@@ -94,9 +102,14 @@ they disappear on quit. In-progress gestures are not a saved session. Inter font
   macOS uses separate overlay, never-key floating, and keyboard-capable setup panel classes.
   The overlay borrows focus only while typing; setup borrows it while editing. Focus restoration avoids activating an old app after a user switches
   to a different one.
-- `src-tauri/src/displays.rs`: stable overlay registry, display-scoped history dispatch and
+- `src-tauri/src/displays.rs`: stable overlay registry, active-session history dispatch and
   in-memory session cache, platform-specific display placement, and topology reconciliation. macOS uses
   the screen-parameters notification; Windows uses display/settings/DPI messages. No display poll.
+- `src-tauri/src/sessions.rs`: display/Space histories and generation ownership. Late saves
+  cannot write into another Space; overlays acknowledge the current generation before showing.
+- `src-tauri/src/platform/macos/spaces.rs`: dynamically loaded, read-only SkyLight Space lookup,
+  mapped to displays through CoreGraphics UUIDs. NSWorkspace's Space-change notification
+  triggers session changes; there is no Space polling or Space-switching/injection API.
 - `src-tauri/src/{windows,tray,shortcuts}.rs`: window lifecycle, text/sampling transitions,
   menu bar, and global shortcuts. Shortcut replacement registers the new key before releasing the old and rolls back if saving fails.
 - `src-tauri/src/{editing,setup}.rs`: field-level agenda edits and the keyboard-capable setup
@@ -151,6 +164,12 @@ pnpm tauri build --bundles nsis
   844 on Windows); very narrow/portrait displays can clip it. Sticky/setup also use fixed widths.
 - In-memory history/reconnect snapshots grow with edits. Clear is undoable and does not
   purge history; quitting resets it. Large sessions add memory and snapshot serialization work.
+- macOS Space lookup uses private APIs and can break after OS updates. A lookup failure
+  hides annotations, disables their input, and reports an error rather than showing another
+  Space's drawings. This adds no Accessibility/Screen Recording permission requirement.
+  Deleted/recreated Spaces, including during display reconnects, can have new identities;
+  restoration requires the same display/Space identity. Orphaned sessions remain in memory until
+  quit. Space switches and full-screen slideshow transitions need native acceptance testing.
 - Hardware display changes, Windows slideshow focus, Retina latency, and the memory target
   are not declared passed by automated unit tests or the browser preview.
 

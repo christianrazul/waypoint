@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { commands, on } from "../shared/ipc";
 import { connectDrawingState, useAppStore } from "../shared/store";
 import { DrawingController, type TextDraft } from "./controller";
+import { OverlaySessions } from "./sessions";
 import { TEXT_FONT, TEXT_HEIGHT } from "./render";
 import "../shared/tokens.css";
 
@@ -36,47 +37,37 @@ function Overlay() {
     const offStore = useAppStore.subscribe((state) =>
       controller.updateState(state.drawing, state.ready && hydrated),
     );
-    let saving = false;
-    let dirty = false;
-    const save = () => {
-      dirty = true;
-      if (saving) return;
-      saving = true;
-      void (async () => {
-        try {
-          while (dirty && !disposed) {
-            dirty = false;
-            await commands.saveOverlaySession(controller.history.snapshot());
-          }
-        } catch (error) {
-          if (!disposed) useAppStore.getState().reportError(error);
-        } finally {
-          saving = false;
-        }
-      })();
-    };
-    controller.history.onChange = save;
-    void commands
-      .getOverlaySession()
-      .then((snapshot) => {
-        if (disposed) return;
-        if (snapshot) controller.history.restore(snapshot);
-        hydrated = true;
+    const sessions = new OverlaySessions({
+      get: commands.getOverlaySession,
+      save: commands.saveOverlaySession,
+      ready: commands.overlaySessionReady,
+    }, {
+      finish: () => { controller.commitText(); controller.finishGesture(); },
+      snapshot: () => controller.history.snapshot(),
+      restore: (snapshot) => controller.restoreSession(snapshot),
+      ready: (ready) => {
+        hydrated = ready;
         const state = useAppStore.getState();
-        controller.updateState(state.drawing, state.ready);
-        controller.resize();
-      })
-      .catch((error) => useAppStore.getState().reportError(error));
+        controller.updateState(state.drawing, state.ready && hydrated);
+      },
+      error: (error) => { if (!disposed) useAppStore.getState().reportError(error); },
+    });
+    controller.history.onChange = () => {
+      void sessions.save().catch((error) => {
+        if (!disposed) useAppStore.getState().reportError(error);
+      });
+    };
     controller.updateState(useAppStore.getState().drawing, false);
     const listeners = [
-      on("annotations:clear", controller.clear),
-      on("annotations:undo", controller.undo),
-      on("annotations:redo", controller.redo),
+      on("annotations:clear", () => { if (hydrated) controller.clear(); }),
+      on("annotations:undo", () => { if (hydrated) controller.undo(); }),
+      on("annotations:redo", () => { if (hydrated) controller.redo(); }),
       on("text:commit", controller.commitText),
+      on("overlay:session-changed", () => { void sessions.refresh(); }),
     ];
-    listeners.forEach(
-      (listener) => void listener.catch(useAppStore.getState().reportError),
-    );
+    void Promise.all(listeners).then(() => {
+      if (!disposed) return sessions.refresh();
+    }).catch(useAppStore.getState().reportError);
     canvas.addEventListener("pointerdown", controller.pointerDown);
     canvas.addEventListener("pointermove", controller.pointerMove);
     canvas.addEventListener("pointerup", controller.pointerUp);
@@ -95,6 +86,7 @@ function Overlay() {
     watchDpr();
     return () => {
       disposed = true;
+      sessions.dispose();
       controller.history.onChange = null;
       disconnect();
       offStore();

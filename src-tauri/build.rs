@@ -8,6 +8,7 @@ fn main() {
             "set_shortcut",
             "get_overlay_session",
             "save_overlay_session",
+            "overlay_session_ready",
             "get_drawing_state",
             "select_tool",
             "begin_text_edit",

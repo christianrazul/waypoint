@@ -8,7 +8,7 @@ import type {
 } from "../shared/types";
 import { commands } from "../shared/ipc";
 import { annotationOutline, constrainEndpoint, hitTestSweep } from "./geometry";
-import { AnnotationHistory } from "./history";
+import { AnnotationHistory, type HistorySnapshot } from "./history";
 import { AnnotationRenderer, TEXT_FONT, TEXT_HEIGHT } from "./render";
 
 export interface TextDraft {
@@ -78,6 +78,12 @@ export class DrawingController {
     );
     this.requestDraw();
   };
+
+  restoreSession(snapshot: HistorySnapshot): void {
+    this.history.restore(snapshot);
+    if (this.frame !== null) cancelAnimationFrame(this.frame);
+    this.draw();
+  }
 
   pointerDown = (event: PointerEvent): void => {
     if (

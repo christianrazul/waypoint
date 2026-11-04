@@ -66,12 +66,12 @@ This milestone remains open pending the manual checks and performance targets be
   removing/recreating that simulated display restored its strokes and history.
 - The preview is mocked IPC, not a hardware hot-plug or OS-focus test.
 
-## Release artifacts and Windows build
+## Original M5 release artifacts and Windows build
 
 The validation branch is `codex/m5-validation-20261103`; it does not update `main` or
 close M5. Initial Windows build:
 [41594233299](https://github.com/christianrazul/waypoint/actions/runs/41594233299),
-commit `26134a6`, passed and produced an installer. The final implementation build is
+commit `26134a6`, passed and produced an installer. The original M5 implementation build is
 [41595482180](https://github.com/christianrazul/waypoint/actions/runs/41595482180),
 commit `1f3f56c`, passed frontend/native tests, native lint, and NSIS packaging.
 The downloaded artifact is `src-tauri/target/release/bundle/nsis/Waypoint_0.1.0_x64-setup.exe`.
@@ -142,6 +142,125 @@ input delivery, compositor/presentation latency, OS focus, a tablet, or Retina s
 the native 60 Hz Retina target is **unverified**.
 
 ## Native acceptance still required
+
+### Two-display Undo failure and correction
+
+Chan's native baseline test found that Cmd+Z removed the latest annotation on both
+monitors, although the pointer was on only one. This fails display-scoped history
+acceptance. Rust selected one overlay correctly, but the frontend registered its
+listeners with Tauri's default `Any` target, which also receives targeted events.
+The browser preview filtered iframe recipients before delivery and masked this bug.
+
+The correction explicitly scopes Undo, Redo, Clear and text-commit listeners to
+their current `WebviewWindow` label. Tool/color listeners remain global. Six event
+regression tests cover both overlay labels, listener removal and shared state
+subscriptions; all 63 frontend tests and the production build pass. The preview
+now supplies each mocked window's identity. Chan reported that the native retest works.
+This does not establish mixed-DPI, hot-plug, or full-screen acceptance. The Windows
+installer above predates this correction.
+The performance profiles and artifact checksums above describe the original M5
+candidate, before this correction.
+
+The corrected macOS app and DMG were rebuilt; strict bundle-signature verification
+and DMG checksum verification passed. Corrected artifact SHA-256 values:
+
+- App executable: `64af043f4e7a2695c589d2f2af82d629f4ecd362aea9ca84fd308f297e5322f2`
+- DMG: `26d05aef7d1fb27e54d27d139310ced2a3244cb1d96446636a192085d431d5a8`
+
+
+### macOS Space-scoped sessions
+
+Chan approved keeping separate drawings/undo/redo per display and Space, with hotbar
+and agenda sticky available across Spaces, and approved private macOS APIs for this.
+
+- One overlay webview per connected display is retained. Native `canJoinAllSpaces`
+  panel behavior is preserved for full-screen compatibility; the drawing session,
+  rather than the panel's native Space membership, changes with the active Space.
+- `platform/macos/spaces.rs` loads SkyLight with `dlopen` and checks both SLS/CGS
+  symbol names for the main connection and copied managed-display Spaces. Calls are
+  read-only: no Space creation/switching, Dock injection, or SIP changes. Framework
+  availability, null results, JSON shape, Space identity and display mapping are checked.
+- Display UUIDs come from CoreGraphics. Each display gets its own active Space UUID,
+  falling back to a nonzero numeric Space ID when no UUID exists. A sole `Main` group
+  supports macOS shared Spaces. Unknown mappings fail rather than guessing a display.
+- NSWorkspace's own notification center observes `NSWorkspaceActiveSpaceDidChangeNotification`.
+  Space refreshes coalesce on the main thread separately from hardware topology changes;
+  observers are removed on exit. There is no idle Space polling loop.
+- Each native binding has a generation. Saves retain the departing generation and
+  are authorized against the caller's overlay. Late saves cannot cross display/Space
+  boundaries or replace a newer generation's saved history. History remains memory-only.
+- Changed overlays are hidden and made click-through. The frontend finishes outgoing
+  text/gestures, flushes that history, ignores stale hydration replies, restores the new
+  history and clears/redraws the canvas synchronously. Only the current generation's
+  readiness acknowledgement can show the panel and re-enable input.
+- Lookup failures suspend annotations and preserve saved sessions. Startup errors are
+  exposed through the hotbar; runtime errors use the existing app error channel. A later
+  successful notification or action can recover. Windows retains per-display sessions.
+- Inactive Space histories and generation records add memory, but visiting a new Space
+  does not create a new WebKit process. Deleted/recreated Spaces can get new identities;
+  their old histories are retained until quit, not reassigned to another Space.
+
+Validation: 71 frontend tests; 24 Rust unit tests; frontend build and all-feature
+Rust lint pass. A separate ignored native integration test was explicitly run against
+the logged-in WindowServer: both display groups returned usable Space identities and
+matched public CoreGraphics display UUIDs. This proves lookup on this host, not Space
+switching behavior. Browser preview drawing, scoped Clear/Undo and simulated display
+reconnect restoration still pass. Rapid switching, delayed writes/hydration/readiness,
+save failure and teardown are covered by unit tests.
+
+Chan confirmed the native Space A/B baseline on 2026-11-03: drawings stayed separate
+and restored correctly on return. The test prompt also included hotbar/sticky availability
+across Spaces; no failure was reported for those controls. This is user-observed acceptance,
+not an automated test. Undo isolation was confirmed in the earlier native retest.
+
+Chan also confirmed the full-screen slideshow checkpoint on 2026-11-03: overlay
+visibility and drawing restoration worked after switching away and back; clicking
+hotbar/sticky controls preserved arrow-key slide navigation, and navigation worked
+after committing annotation text. The presentation app was not specified, so this
+records one macOS slideshow scenario rather than separate passes for all three apps.
+
+Chan confirmed the idle display unplug/reconnect checkpoint on 2026-11-03:
+with drawing disarmed, controls remained reachable and drawing worked on the remaining
+display; reconnect placement and separate drawings were reported as fine. This covers
+the idle path, not unplugging while armed or typing, mixed DPI, or display rearrangement.
+
+Chan confirmed the native shortcut checkpoint on 2026-11-03: a changed Next-section
+binding worked outside setup, assigning another Waypoint action's binding was rejected
+while preserving the working key, Esc canceled recording without a change, and the
+saved binding worked after quit/relaunch. This verifies Waypoint duplicate handling;
+an actual OS/other-application registration conflict has not been tested.
+
+Chan confirmed independent display Spaces on 2026-11-03: switching Spaces on one
+monitor left the other monitor's drawings unchanged; switching back restored the
+original drawings, and Undo remained scoped to the display under the pointer.
+
+Chan confirmed the text-editing Space-switch checkpoint on 2026-11-04: text typed
+in Space A without an explicit commit was committed in A after switching away,
+was absent from B, and normal application keyboard shortcuts worked afterward.
+
+Switching during a pen gesture, unplugging while armed or editing text, ending the
+slideshow/returning to its desktop and visibility during the Space animation remain
+pending.
+The read-only private ABI is not guaranteed across macOS releases.
+The final candidate passed macOS app signing verification and DMG checksum validation:
+
+- App executable SHA-256: `bc1ace7a0d42f9edf804ccfb91176392447c3e9b9aaff257d8cd5fc0ce5b7fae`
+- DMG SHA-256: `8f1afd9c1f9e929ce48d970e4e5ad66301d9f6aa5ac73c2e0938457fea71d953`
+
+Windows validation uses commit `f4a4097` on the validation branch,
+[run 41622648489](https://github.com/christianrazul/waypoint/actions/runs/41622648489),
+which passed frontend tests/build, Windows native tests/lint, and NSIS packaging.
+The downloaded installer replaced the local candidate at
+`src-tauri/target/release/bundle/nsis/Waypoint_0.1.0_x64-setup.exe`.
+Its SHA-256 is `281fc7cc3b72a4986db329eb741f0e1e6ae3dc2149534627b1734e847a3bb835`.
+Windows virtual-desktop scoping is not part of this macOS feature; its per-display
+session handshake compiled and passed CI, but Windows interactive acceptance remains open.
+The initial Space-session CI attempt passed tests but caught two missing macOS-only
+compilation guards in lint; those guards were added for this rerun.
+
+Sources checked against implementation:
+[Apple Space-change notification](https://developer.apple.com/documentation/appkit/nsworkspace/activespacedidchangenotification),
+[yabai's display UUID and Space lookup implementation](https://github.com/koekeishiya/yabai/blob/master/src/display.c).
 
 - [ ] Draw on every physical monitor, including negative origins and mixed DPI; move
       windows between displays and verify physical placement and canvas sharpness.

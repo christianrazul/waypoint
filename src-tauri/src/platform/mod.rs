@@ -121,3 +121,6 @@ pub fn stop_display_watch() {
 pub fn forget_overlay(app: &tauri::AppHandle, label: &str) {
     imp::forget_overlay(app, label);
 }
+pub fn active_spaces(monitors: &[tauri::Monitor]) -> Result<Vec<String>, String> {
+    imp::active_spaces(monitors)
+}

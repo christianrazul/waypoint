@@ -17,6 +17,7 @@
     "allow-end-text-edit",
     "allow-request-setup-close",
     "allow-get-overlay-session",
-    "allow-save-overlay-session"
+    "allow-save-overlay-session",
+    "allow-overlay-session-ready"
   ]
 }

@@ -1,4 +1,4 @@
-import { mockIPC } from "@tauri-apps/api/mocks";
+import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { emit } from "@tauri-apps/api/event";
 const bridge = window.parent.waypointPreview;
 window.addEventListener("message", ({ origin, data }) => {
@@ -10,7 +10,9 @@ mockIPC(
   (command, args) => {
     switch (command) {
       case "get_overlay_session":
-        return structuredClone(bridge.sessions.get(view) ?? null);
+        return { generation: 1, snapshot: structuredClone(bridge.sessions.get(view) ?? null) };
+      case "overlay_session_ready":
+        return true;
       case "save_overlay_session":
         bridge.sessions.set(view, structuredClone(args.snapshot));
         break;
@@ -121,6 +123,7 @@ mockIPC(
   { shouldMockEvents: true },
 );
 const view = new URLSearchParams(location.search).get("view");
+mockWindows(view);
 if (view.startsWith("overlay")) await import("../src/overlay/main.tsx");
 else if (view === "hotbar") await import("../src/hotbar/main.tsx");
 else if (view === "sticky") await import("../src/sticky/main.tsx");

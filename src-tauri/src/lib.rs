@@ -2,6 +2,7 @@ mod agenda;
 mod displays;
 mod editing;
 mod platform;
+mod sessions;
 mod setup;
 mod shortcuts;
 mod tray;
@@ -97,13 +98,21 @@ fn end_text_edit(app: AppHandle, window: tauri::WebviewWindow) -> Result<(), Str
 struct Features {
     native_eyedropper: bool,
     web_eyedropper: bool,
+    annotation_error: Option<String>,
 }
 
 #[tauri::command]
-fn get_features() -> Features {
+fn get_features(app: AppHandle) -> Features {
     Features {
         native_eyedropper: cfg!(all(target_os = "macos", feature = "native-eyedropper")),
         web_eyedropper: cfg!(target_os = "windows"),
+        annotation_error: app
+            .state::<displays::Displays>()
+            .sessions
+            .lock()
+            .unwrap()
+            .error
+            .clone(),
     }
 }
 
@@ -219,16 +228,33 @@ fn start_sticky_drag(app: AppHandle) -> Result<(), String> {
 fn get_overlay_session(
     app: AppHandle,
     window: tauri::WebviewWindow,
-) -> Result<Option<serde_json::Value>, String> {
-    displays::session(&app, window.label(), None)
+) -> Result<sessions::Snapshot, String> {
+    app.state::<displays::Displays>()
+        .sessions
+        .lock()
+        .unwrap()
+        .get(window.label())
 }
 #[tauri::command]
 fn save_overlay_session(
     app: AppHandle,
     window: tauri::WebviewWindow,
     snapshot: serde_json::Value,
+    generation: u64,
 ) -> Result<(), String> {
-    displays::session(&app, window.label(), Some(snapshot)).map(|_| ())
+    app.state::<displays::Displays>()
+        .sessions
+        .lock()
+        .unwrap()
+        .save(window.label(), generation, snapshot)
+}
+#[tauri::command]
+fn overlay_session_ready(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+    generation: u64,
+) -> Result<bool, String> {
+    displays::ready_session(&app, window.label(), generation)
 }
 
 #[tauri::command]
@@ -267,6 +293,7 @@ pub fn run() {
             set_shortcut,
             get_overlay_session,
             save_overlay_session,
+            overlay_session_ready,
             get_drawing_state,
             select_tool,
             begin_text_edit,

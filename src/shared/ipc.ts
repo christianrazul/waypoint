@@ -1,6 +1,7 @@
 import type { HistorySnapshot } from "../overlay/history";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type {
   AgendaEdit,
   AgendaDirection,
@@ -22,6 +23,7 @@ export interface Events {
   "annotations:undo": null;
   "annotations:redo": null;
   "text:commit": null;
+  "overlay:session-changed": null;
   "agenda:changed": number;
   "sticky:toggle": boolean;
   "setup:opened": null;
@@ -32,7 +34,19 @@ export function on<K extends keyof Events>(
   event: K,
   handler: (payload: Events[K]) => void,
 ): Promise<UnlistenFn> {
-  return listen<Events[K]>(event, (e) => handler(e.payload));
+  const scoped =
+    event === "annotations:clear" ||
+    event === "annotations:undo" ||
+    event === "annotations:redo" ||
+    event === "text:commit" ||
+    event === "overlay:session-changed";
+  return listen<Events[K]>(
+    event,
+    (e) => handler(e.payload),
+    scoped
+      ? { target: { kind: "WebviewWindow", label: getCurrentWebviewWindow().label } }
+      : undefined,
+  );
 }
 
 export const commands = {
@@ -42,9 +56,11 @@ export const commands = {
   setShortcut: (action: ShortcutAction, binding: string) =>
     invoke<ShortcutSnapshot>("set_shortcut", { action, binding }),
   getOverlaySession: () =>
-    invoke<HistorySnapshot | null>("get_overlay_session"),
-  saveOverlaySession: (snapshot: HistorySnapshot) =>
-    invoke<void>("save_overlay_session", { snapshot }),
+    invoke<{ generation: number; snapshot: HistorySnapshot | null }>("get_overlay_session"),
+  saveOverlaySession: (generation: number, snapshot: HistorySnapshot) =>
+    invoke<void>("save_overlay_session", { generation, snapshot }),
+  overlaySessionReady: (generation: number) =>
+    invoke<boolean>("overlay_session_ready", { generation }),
   editAgenda: (edit: AgendaEdit) =>
     invoke<AgendaState>("edit_agenda", { edit }),
   openSetup: () => invoke<void>("open_setup"),

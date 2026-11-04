@@ -95,7 +95,6 @@ pub fn create_overlay(
         }
     });
     window.set_ignore_cursor_events(!crate::displays::current_capture(app))?;
-    platform::show_without_focus(&window)?;
     Ok(window)
 }
 
@@ -260,6 +259,9 @@ pub fn toggle_click_through(app: &AppHandle) -> Result<(), String> {
 }
 
 pub fn begin_text_edit(app: &AppHandle, label: &str) -> Result<(), String> {
+    if !crate::displays::session_ready(app, label) {
+        return Err("Wait for the active Space's annotations to load".into());
+    }
     let state = app.state::<AppState>();
     let current = state.drawing.lock().unwrap().clone();
     if current.editing {

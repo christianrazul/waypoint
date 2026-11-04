@@ -63,6 +63,8 @@ beforeEach(() => {
   canvas = {
     getContext: () => ({
       measureText: (text: string) => ({ width: text.length * 12 }),
+      setTransform: vi.fn(),
+      clearRect: vi.fn(),
     }),
     setPointerCapture: (id: number) => captures.add(id),
     hasPointerCapture: (id: number) => captures.has(id),
@@ -209,4 +211,19 @@ it("serializes focus acquisition and release when an editor is interrupted befor
   expect(sequence).toEqual(["begin first", "end first", "begin second"]);
   expect(editor?.position).toEqual([200, 200]);
   expect(editor?.pending).toBe(false);
+});
+
+it("clears the departing Space's pixels synchronously before showing an empty session", () => {
+  const context = vi.spyOn(canvas, "getContext");
+  const controller = make("pen");
+  const ctx = context.mock.results[0].value!;
+  controller.pointerDown(pointer(100, 100));
+  controller.finishGesture();
+  controller.resize();
+  expect(controller.history.annotations).toHaveLength(1);
+  controller.restoreSession({ objects: [], past: [], future: [] });
+  expect(controller.history.annotations).toEqual([]);
+  expect(ctx.clearRect).toHaveBeenCalledWith(0, 0, 2400, 1600);
+  expect(cancelAnimationFrame).toHaveBeenCalledWith(1);
+  expect(controller.history.canUndo).toBe(false);
 });
