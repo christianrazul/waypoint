@@ -177,7 +177,15 @@ function StickyWindow() {
     );
   };
   return (
-    <main ref={containerRef} className="sticky-surface">
+    <main
+      ref={containerRef}
+      className="sticky-surface"
+      style={
+        {
+          "--sticky-scale": (state?.settings.scale ?? 100) / 100,
+        } as React.CSSProperties
+      }
+    >
       {state ? (
         <div className="sticky-frame">
           <Sticky
@@ -189,7 +197,10 @@ function StickyWindow() {
                 ? undefined
                 : Math.max(
                     1,
-                    maxHeight - (state.settings.style === "paper" ? 13 : 0),
+                    maxHeight -
+                      (state.settings.style === "paper"
+                        ? 13 * (state.settings.scale / 100)
+                        : 0),
                   )
             }
             onDone={setDone}
@@ -215,6 +226,7 @@ function StickyWindow() {
                   focused={draft.focused}
                   saving={draft.saving}
                   maxHeight={maxHeight}
+                  scale={state.settings.scale / 100}
                   onChange={(text) => {
                     draftRef.current = draftRef.current && {
                       ...draftRef.current,

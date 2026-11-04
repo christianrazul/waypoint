@@ -62,6 +62,13 @@ pub struct StickySettings {
     pub accent: String,
     pub compact: bool,
     pub display: Display,
+    /// Text and layout size in percent, so the note stays readable on a projector.
+    #[serde(default = "default_scale")]
+    pub scale: u16,
+}
+pub const SCALE_RANGE: std::ops::RangeInclusive<u16> = 75..=200;
+fn default_scale() -> u16 {
+    100
 }
 impl Default for StickySettings {
     fn default() -> Self {
@@ -73,6 +80,7 @@ impl Default for StickySettings {
             accent: "#FFD25A".into(),
             compact: false,
             display: Display::Primary,
+            scale: default_scale(),
         }
     }
 }
@@ -120,6 +128,9 @@ impl AgendaState {
         }
         if self.settings.opacity > 100 {
             return Err("Sticky opacity must be between 0 and 100".into());
+        }
+        if !SCALE_RANGE.contains(&self.settings.scale) {
+            return Err("Sticky text size must be between 75% and 200%".into());
         }
         let color = &self.settings.accent;
         if color.len() != 7
@@ -314,6 +325,7 @@ mod tests {
             ["Point at the gateway box"]
         );
         assert_eq!(state.settings.opacity, 72);
+        assert_eq!(state.settings.scale, 100);
         state.validate().unwrap();
     }
     #[test]
@@ -370,6 +382,9 @@ mod tests {
         assert!(state.validate().is_err());
         state.agenda.current_index = 0;
         state.settings.opacity = 101;
+        assert!(state.validate().is_err());
+        state.settings.opacity = 50;
+        state.settings.scale = 300;
         assert!(state.validate().is_err());
     }
 }

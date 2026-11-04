@@ -44,7 +44,8 @@
     "corner": "bl",
     "accent": "#FFD25A",
     "compact": false,
-    "display": "primary"
+    "display": "primary",
+    "scale": 100
   },
   "revision": 0
 }

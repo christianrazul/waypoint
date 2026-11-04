@@ -1,18 +1,21 @@
+:root {
+  --sticky-scale: 1;
+}
 .sticky-surface {
   padding: 48px;
 }
 .sticky-frame {
-  width: var(--wp-sticky-width);
+  width: calc(var(--wp-sticky-width) * var(--sticky-scale));
 }
 .sticky {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  width: var(--wp-sticky-width);
-  padding: 16px 18px;
+  gap: calc(10px * var(--sticky-scale));
+  width: calc(var(--wp-sticky-width) * var(--sticky-scale));
+  padding: calc(16px * var(--sticky-scale)) calc(18px * var(--sticky-scale));
   border: 1px solid var(--wp-sticky-border);
-  border-radius: 14px;
+  border-radius: calc(14px * var(--sticky-scale));
   box-shadow: var(--wp-sticky-shadow);
   background: var(--sticky-fill, rgba(30, 34, 42, 0.72));
   color: var(--note-text, #fff);
@@ -23,27 +26,27 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: calc(12px * var(--sticky-scale));
   color: var(--note-label, #c7cdd6);
 }
 .sticky-header > :first-child {
-  font-size: 11px;
+  font-size: calc(11px * var(--sticky-scale));
   font-weight: 600;
   letter-spacing: 0.12em;
 }
 .sticky-header > :last-child {
-  font-size: 12px;
+  font-size: calc(12px * var(--sticky-scale));
   white-space: nowrap;
 }
 .sticky-title-row {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: calc(8px * var(--sticky-scale));
 }
 .sticky h1 {
   margin: 0;
-  font-size: 17px;
+  font-size: calc(17px * var(--sticky-scale));
   font-weight: 600;
   line-height: 1.3;
 }
@@ -53,13 +56,13 @@
 .all-checked {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  height: 24px;
-  padding: 0 8px;
-  border-radius: 12px;
+  gap: calc(4px * var(--sticky-scale));
+  height: calc(24px * var(--sticky-scale));
+  padding: 0 calc(8px * var(--sticky-scale));
+  border-radius: calc(12px * var(--sticky-scale));
   background: var(--note-badge-fill, rgba(91, 227, 106, 0.18));
   color: var(--note-badge-text, #b8f5bf);
-  font-size: 12px;
+  font-size: calc(12px * var(--sticky-scale));
   font-weight: 600;
   white-space: nowrap;
 }
@@ -68,12 +71,12 @@
 }
 .progress {
   display: flex;
-  gap: 4px;
+  gap: calc(4px * var(--sticky-scale));
 }
 .progress > span {
   flex: 1;
-  height: 4px;
-  border-radius: 2px;
+  height: calc(4px * var(--sticky-scale));
+  border-radius: calc(2px * var(--sticky-scale));
   background: var(--note-progress, rgba(255, 255, 255, 0.25));
 }
 .progress > span.done {
@@ -85,22 +88,22 @@
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: calc(8px * var(--sticky-scale));
 }
 .checklist-row {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: calc(10px * var(--sticky-scale));
   color: var(--note-item, #f2f4f7);
-  font-size: 13px;
+  font-size: calc(13px * var(--sticky-scale));
   line-height: 1.5;
   cursor: pointer;
 }
 .checklist-row input {
-  flex: 0 0 16px;
-  width: 16px;
-  height: 16px;
-  margin: 2px 0 0;
+  flex: 0 0 calc(16px * var(--sticky-scale));
+  width: calc(16px * var(--sticky-scale));
+  height: calc(16px * var(--sticky-scale));
+  margin: calc(2px * var(--sticky-scale)) 0 0;
   accent-color: var(--note-checkbox, #5be36a);
   cursor: pointer;
 }
@@ -118,36 +121,36 @@
 }
 .sticky code {
   font:
-    12px ui-monospace,
+    calc(12px * var(--sticky-scale)) ui-monospace,
     monospace;
-  padding: 1px 5px;
-  border-radius: 4px;
+  padding: 1px calc(5px * var(--sticky-scale));
+  border-radius: calc(4px * var(--sticky-scale));
   background: var(--note-code, rgba(255, 255, 255, 0.14));
 }
 .item-details {
-  margin: 4px 0 0 26px;
-  padding-left: 10px;
+  margin: calc(4px * var(--sticky-scale)) 0 0 calc(26px * var(--sticky-scale));
+  padding-left: calc(10px * var(--sticky-scale));
   border-left: 1px solid var(--note-rule, rgba(255, 255, 255, 0.18));
   color: var(--note-label, #c7cdd6);
-  font-size: 12px;
+  font-size: calc(12px * var(--sticky-scale));
   line-height: 1.5;
 }
 .sticky-footer {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: calc(10px * var(--sticky-scale));
   border-top: 1px solid var(--note-rule, rgba(255, 255, 255, 0.12));
-  padding-top: 10px;
+  padding-top: calc(10px * var(--sticky-scale));
 }
 .sticky-footer button {
   flex-shrink: 0;
-  height: 36px;
-  padding: 0 12px;
+  height: calc(36px * var(--sticky-scale));
+  padding: 0 calc(12px * var(--sticky-scale));
   border: 1px solid var(--note-button-border, rgba(255, 255, 255, 0.2));
-  border-radius: 8px;
+  border-radius: calc(8px * var(--sticky-scale));
   background: var(--note-button-fill, rgba(255, 255, 255, 0.08));
   color: var(--note-item, #f2f4f7);
-  font: 600 13px var(--wp-font);
+  font: 600 calc(13px * var(--sticky-scale)) var(--wp-font);
   cursor: pointer;
 }
 .sticky-footer .next-button {
@@ -161,8 +164,8 @@
 }
 .sticky button:focus-visible,
 .sticky input:focus-visible {
-  outline: 2px solid var(--sticky-accent, #ffd25a);
-  outline-offset: 3px;
+  outline: calc(2px * var(--sticky-scale)) solid var(--sticky-accent, #ffd25a);
+  outline-offset: calc(3px * var(--sticky-scale));
 }
 .next-hint {
   min-width: 0;
@@ -171,17 +174,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--note-label, #c7cdd6);
-  font-size: 12px;
+  font-size: calc(12px * var(--sticky-scale));
   text-align: center;
 }
 .empty-agenda {
   margin: 0;
   color: var(--note-label, #c7cdd6);
-  font-size: 13px;
+  font-size: calc(13px * var(--sticky-scale));
   line-height: 1.5;
 }
 .sticky-error {
-  font-size: 12px;
+  font-size: calc(12px * var(--sticky-scale));
   color: #ffd25a;
 }
 
@@ -211,9 +214,9 @@
 }
 .sticky-paper {
   --note-label: #5b4a12;
-  border-radius: 4px;
+  border-radius: calc(4px * var(--sticky-scale));
   transform: rotate(-1.5deg);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 calc(6px * var(--sticky-scale)) calc(14px * var(--sticky-scale)) rgba(0, 0, 0, 0.15);
 }
 .sticky-clear .next-button,
 .sticky-paper .next-button {
@@ -231,13 +234,13 @@
 }
 .empty-setup {
   display: block;
-  margin-top: 8px;
-  padding: 6px 10px;
+  margin-top: calc(8px * var(--sticky-scale));
+  padding: calc(6px * var(--sticky-scale)) calc(10px * var(--sticky-scale));
   border: 1px solid var(--note-button-border, rgba(255, 255, 255, 0.2));
-  border-radius: 6px;
+  border-radius: calc(6px * var(--sticky-scale));
   background: var(--note-button-fill, rgba(255, 255, 255, 0.08));
   color: inherit;
-  font: 600 12px var(--wp-font);
+  font: 600 calc(12px * var(--sticky-scale)) var(--wp-font);
   cursor: pointer;
 }
 
@@ -248,19 +251,19 @@
 .sticky-editor {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: calc(10px * var(--sticky-scale));
 }
 .sticky-editor textarea {
   box-sizing: border-box;
   width: 100%;
-  min-height: 160px;
-  padding: 10px 12px;
+  min-height: calc(160px * var(--sticky-scale));
+  padding: calc(10px * var(--sticky-scale)) calc(12px * var(--sticky-scale));
   border: 1px solid var(--note-rule, rgba(255, 255, 255, 0.18));
-  border-radius: 8px;
+  border-radius: calc(8px * var(--sticky-scale));
   background: var(--note-code, rgba(0, 0, 0, 0.18));
   color: var(--note-item, #f2f4f7);
   font:
-    12.5px/1.55 ui-monospace,
+    calc(12.5px * var(--sticky-scale))/1.55 ui-monospace,
     "SF Mono",
     Menlo,
     monospace;

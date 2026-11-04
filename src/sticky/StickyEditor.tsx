@@ -86,6 +86,7 @@ export function StickyEditor({
   focused,
   saving,
   maxHeight,
+  scale = 1,
   onChange,
   onSave,
   onCancel,
@@ -96,6 +97,7 @@ export function StickyEditor({
   focused: boolean;
   saving: boolean;
   maxHeight?: number;
+  scale?: number;
   onChange: (value: string) => void;
   onSave: () => void;
   onCancel: () => void;
@@ -135,7 +137,9 @@ export function StickyEditor({
           "# Step title\n- [ ] Checklist item\n  - Detail\n\nOr paste an outline…"
         }
         style={{
-          maxHeight: maxHeight ? Math.max(120, maxHeight - 132) : 420,
+          maxHeight: maxHeight
+            ? Math.max(120 * scale, maxHeight - 132 * scale)
+            : 420 * scale,
         }}
         onChange={(event) => onChange(event.currentTarget.value)}
         onKeyDown={(event) => {

@@ -352,6 +352,26 @@ export function Setup({
         </div>
         <Opacity settings={state.settings} />
         <div className="setup-group">
+          <h2>Text size</h2>
+          <div className="text-size-options">
+            {[100, 125, 150, 175, 200].map((scale) => (
+              <button
+                key={scale}
+                aria-pressed={state.settings.scale === scale}
+                aria-label={`Text size ${scale}%`}
+                onClick={() => void saveEdit({ type: "scale", scale })}
+              >
+                <span style={{ fontSize: 10 + (scale - 100) / 20 }}>A</span>
+                {scale}%
+              </button>
+            ))}
+          </div>
+          <p className="field-hint">
+            Scales the whole sticky so it stays readable on a projector or
+            shared screen.
+          </p>
+        </div>
+        <div className="setup-group">
           <h2>Display</h2>
           <div className="position-options">
             {(
