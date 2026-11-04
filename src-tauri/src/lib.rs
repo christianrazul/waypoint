@@ -23,6 +23,7 @@ pub enum Tool {
     Ellipse,
     Text,
     Eraser,
+    Highlighter,
 }
 
 #[derive(Clone, Serialize)]
@@ -32,6 +33,8 @@ pub struct DrawingState {
     pub armed: bool,
     pub editing: bool,
     pub sampling: bool,
+    /// Highlighter tool only: the hold key is down, so overlays capture the pointer.
+    pub highlighting: bool,
     pub color: String,
     pub revision: u64,
 }
@@ -43,6 +46,7 @@ impl Default for DrawingState {
             armed: false,
             editing: false,
             sampling: false,
+            highlighting: false,
             color: "#F0509A".into(),
             revision: 0,
         }

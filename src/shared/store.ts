@@ -16,6 +16,7 @@ export const useAppStore = create<AppStore>((set) => ({
     armed: false,
     editing: false,
     sampling: false,
+    highlighting: false,
     color: "#F0509A",
     revision: -1,
   },

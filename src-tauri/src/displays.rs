@@ -368,7 +368,17 @@ pub fn ready_session(app: &AppHandle, label: &str, generation: u64) -> Result<bo
     }
     Ok(true)
 }
+/// Captures the pointer on every ready overlay when `capture` is set and the current tool wants it.
+/// The highlighter only captures while its hold key is down.
 pub fn pointer_mode(app: &AppHandle, capture: bool) -> Result<(), String> {
+    let drawing = app.state::<AppState>().drawing.lock().unwrap().clone();
+    set_capture(app, capture && tool_captures(drawing.tool, drawing.highlighting))
+}
+pub fn tool_captures(tool: crate::Tool, highlighting: bool) -> bool {
+    tool != crate::Tool::Highlighter || highlighting
+}
+/// Like `pointer_mode`, without consulting the stored tool (for callers mid-transition).
+pub fn set_capture(app: &AppHandle, capture: bool) -> Result<(), String> {
     for window in overlays(app) {
         window
             .set_ignore_cursor_events(!capture || !session_ready(app, window.label()))
@@ -378,7 +388,10 @@ pub fn pointer_mode(app: &AppHandle, capture: bool) -> Result<(), String> {
 }
 pub fn current_capture(app: &AppHandle) -> bool {
     let drawing = app.state::<AppState>().drawing.lock().unwrap().clone();
-    drawing.armed && !drawing.sampling && !crate::setup::is_open(app)
+    drawing.armed
+        && !drawing.sampling
+        && !crate::setup::is_open(app)
+        && tool_captures(drawing.tool, drawing.highlighting)
 }
 
 #[cfg(test)]

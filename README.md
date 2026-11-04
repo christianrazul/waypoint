@@ -46,6 +46,9 @@ There is no Dock icon. Use the pen-nib icon in the menu bar:
 - Left click: show or hide the hotbar. Hiding also turns drawing off.
 - Right click: hotbar, sticky setup/visibility, click-through, window-level debugging, undo/redo, clear, and quit.
 - Click a tool to arm it; re-click the active tool to return to pass-through.
+- Highlighter: the pointer keeps working in other apps until you hold H; drag while holding it to
+  draw a translucent highlight that fades from its start after 2.5 s and is never saved or undone.
+  While the highlighter is armed, H is taken globally (other apps cannot type it) and Esc disarms.
 - Ctrl+Option+D: toggle drawing / pass-through, even with the hotbar hidden.
 - Ctrl+Option+C: clear annotations on the display under the cursor.
 - On Windows, use Ctrl+Alt in place of Ctrl+Option. These five global actions can be changed

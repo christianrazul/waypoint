@@ -34,6 +34,11 @@ const COLORS = [
 
 const TOOLS: { tool: Tool; label: string; icon?: IconName }[] = [
   { tool: "pen", label: "Freehand pen", icon: "pen" },
+  {
+    tool: "highlighter",
+    label: "Highlighter (hold H and drag)",
+    icon: "highlighter",
+  },
   { tool: "arrow", label: "Pointer arrow", icon: "arrow" },
   { tool: "rectangle", label: "Rectangle", icon: "rectangle" },
   { tool: "ellipse", label: "Ellipse", icon: "ellipse" },

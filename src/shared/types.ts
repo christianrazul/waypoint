@@ -1,5 +1,11 @@
 export type Tool =
-  "pen" | "arrow" | "rectangle" | "ellipse" | "text" | "eraser";
+  | "pen"
+  | "highlighter"
+  | "arrow"
+  | "rectangle"
+  | "ellipse"
+  | "text"
+  | "eraser";
 export type ShapeTool = "arrow" | "rectangle" | "ellipse";
 export type Position = [x: number, y: number];
 export type Point = [x: number, y: number, pressure: number];
@@ -9,6 +15,8 @@ export interface DrawingState {
   armed: boolean;
   editing: boolean;
   sampling: boolean;
+  /** Highlighter only: the hold key is down and the overlay captures the pointer. */
+  highlighting: boolean;
   color: string;
   revision: number;
 }

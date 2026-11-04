@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import type { DrawingState } from "../shared/types";
 import { DrawingController, type TextDraft } from "./controller";
+import { HighlightLayer } from "./highlight";
 const ipc = vi.hoisted(() => ({
   beginTextEdit: vi.fn(),
   endTextEdit: vi.fn(),
@@ -11,6 +12,7 @@ const state = (tool: DrawingState["tool"]): DrawingState => ({
   armed: true,
   editing: false,
   sampling: false,
+  highlighting: false,
   color: "#F0509A",
   revision: 0,
 });
@@ -226,4 +228,25 @@ it("clears the departing Space's pixels synchronously before showing an empty se
   expect(ctx.clearRect).toHaveBeenCalledWith(0, 0, 2400, 1600);
   expect(cancelAnimationFrame).toHaveBeenCalledWith(1);
   expect(controller.history.canUndo).toBe(false);
+});
+
+it("highlights only while the hold key is down and never enters undo history", () => {
+  const layer = new HighlightLayer(canvas);
+  const start = vi.spyOn(layer, "start");
+  const end = vi.spyOn(layer, "end");
+  const controller = new DrawingController(canvas, state("highlighter"), () => {}, report, layer);
+  controller.updateState(state("highlighter"), true);
+  controller.pointerDown(pointer(0, 0));
+  expect(start).not.toHaveBeenCalled();
+
+  const holding = { ...state("highlighter"), highlighting: true };
+  controller.updateState(holding, true);
+  controller.pointerDown(pointer(0, 0));
+  controller.pointerMove(pointer(40, 10));
+  expect(start).toHaveBeenCalledWith("#F0509A", 0, 0);
+  expect(start.mock.results[0].value.points).toHaveLength(2);
+
+  controller.updateState(state("highlighter"), true);
+  expect(end).toHaveBeenCalledOnce();
+  expect(controller.history.annotations).toHaveLength(0);
 });
