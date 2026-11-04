@@ -50,6 +50,18 @@ export function editPreviewAgenda(state, edit) {
     case "deleteItem":
       section.items.splice(section.items.indexOf(item), 1);
       break;
+    case "replaceSections":
+      for (const s of edit.sections) {
+        s.title = text(s.title);
+        for (const i of s.items) {
+          i.text = text(i.text);
+          i.details = i.details.map((d) => d.trim()).filter(Boolean);
+        }
+      }
+      if (!edit.sections.some((s) => sections.some((o) => o.id === s.id)))
+        state.agenda.currentIndex = 0;
+      sections.splice(0, sections.length, ...structuredClone(edit.sections));
+      break;
     case "resetChecklist":
       for (const s of sections) for (const i of s.items) i.done = false;
       break;

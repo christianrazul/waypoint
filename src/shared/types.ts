@@ -100,6 +100,7 @@ export type AgendaEdit =
       details?: string[];
     }
   | { type: "deleteItem"; sectionId: string; itemId: string }
+  | { type: "replaceSections"; sections: Section[] }
   | { type: "resetChecklist" }
   | { type: "style"; style: StickySettings["style"] }
   | { type: "opacity"; opacity: number }

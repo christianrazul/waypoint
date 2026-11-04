@@ -70,6 +70,7 @@ pub fn open(app: &AppHandle) -> Result<(), String> {
     crate::displays::invoke_display(app)?;
     place(app)?;
     windows::end_text_edit(app)?;
+    windows::end_sticky_edit(app)?;
     // The hold key is released while setup is open, so its key-up would never arrive.
     windows::set_highlighting(app, false)?;
     let window = app

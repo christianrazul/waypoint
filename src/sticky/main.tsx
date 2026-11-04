@@ -14,6 +14,8 @@ import {
   useAgendaStore,
 } from "../shared/agenda-store";
 import { Sticky } from "./Sticky";
+import { StickyEditor } from "./StickyEditor";
+import { parseAgenda, sectionOffset, serializeAgenda } from "./markdown";
 import "../shared/tokens.css";
 import "./styles.css";
 
@@ -25,6 +27,82 @@ function StickyWindow() {
   const [maxHeight, setMaxHeight] = useState<number>();
   const [busy, setBusy] = useState<Set<string>>(new Set());
   useEffect(connectAgendaState, []);
+  const [draft, setDraft] = useState<{
+    text: string;
+    original: string;
+    caret: number;
+    focused: boolean;
+    saving: boolean;
+  } | null>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
+  const beginEdit = () => {
+    const current = useAgendaStore.getState().state;
+    if (!current || draftRef.current) return;
+    const text = serializeAgenda(current.agenda.sections);
+    const next = {
+      text,
+      original: text,
+      caret: Math.min(
+        text.length,
+        sectionOffset(current.agenda.sections, current.agenda.currentIndex),
+      ),
+      focused: false,
+      saving: false,
+    };
+    draftRef.current = next;
+    setDraft(next);
+    useAgendaStore.setState({ error: null });
+    commands.beginStickyEdit().then(
+      () => setDraft((d) => d && { ...d, focused: true }),
+      (error) => {
+        draftRef.current = null;
+        setDraft(null);
+        useAgendaStore.getState().reportError(error);
+      },
+    );
+  };
+  const finishEdit = () => {
+    draftRef.current = null;
+    setDraft(null);
+    void commands
+      .endStickyEdit()
+      .catch((error) => useAgendaStore.getState().reportError(error));
+  };
+  const saveEdit = async () => {
+    const current = draftRef.current;
+    const agenda = useAgendaStore.getState().state;
+    if (!current || current.saving || !agenda) return;
+    if (current.text === current.original) return finishEdit();
+    draftRef.current = { ...current, saving: true };
+    setDraft(draftRef.current);
+    try {
+      useAgendaStore.getState().apply(
+        await commands.editAgenda({
+          type: "replaceSections",
+          sections: parseAgenda(current.text, agenda.agenda.sections),
+        }),
+      );
+      finishEdit();
+    } catch (error) {
+      useAgendaStore.getState().reportError(error);
+      draftRef.current = draftRef.current && {
+        ...draftRef.current,
+        saving: false,
+      };
+      setDraft(draftRef.current);
+    }
+  };
+  // Editing stays open until Save or Cancel, even while you copy from other apps. Clicking
+  // back into the editor re-takes keyboard focus if something else (setup, the text tool)
+  // ended the native edit session in the meantime.
+  const refocusEdit = () => {
+    if (draftRef.current)
+      void commands
+        .beginStickyEdit()
+        .catch((error) => useAgendaStore.getState().reportError(error));
+  };
 
   useLayoutEffect(() => {
     const element = containerRef.current?.firstElementChild;
@@ -127,6 +205,28 @@ function StickyWindow() {
             }
             onNavigate={(direction) =>
               void runAgendaCommand(() => commands.navigateAgenda(direction))
+            }
+            onEdit={beginEdit}
+            editor={
+              draft && (
+                <StickyEditor
+                  value={draft.text}
+                  caret={draft.caret}
+                  focused={draft.focused}
+                  saving={draft.saving}
+                  maxHeight={maxHeight}
+                  onChange={(text) => {
+                    draftRef.current = draftRef.current && {
+                      ...draftRef.current,
+                      text,
+                    };
+                    setDraft(draftRef.current);
+                  }}
+                  onSave={() => void saveEdit()}
+                  onCancel={finishEdit}
+                  onActivate={refocusEdit}
+                />
+              )
             }
           />
         </div>

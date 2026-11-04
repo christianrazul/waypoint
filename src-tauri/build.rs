@@ -31,6 +31,8 @@ fn main() {
             "close_setup",
             "request_setup_close",
             "start_sticky_drag",
+            "begin_sticky_edit",
+            "end_sticky_edit",
         ]),
     ))
     .expect("failed to run tauri-build");

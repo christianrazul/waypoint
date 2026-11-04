@@ -41,6 +41,9 @@ pub enum AgendaEdit {
         section_id: String,
         item_id: String,
     },
+    ReplaceSections {
+        sections: Vec<Section>,
+    },
     ResetChecklist,
     Style {
         style: StickyStyle,
@@ -182,6 +185,41 @@ impl AgendaState {
                     .ok_or("The checklist item no longer exists")?;
                 items.remove(index);
             }
+            AgendaEdit::ReplaceSections { sections } => {
+                // A wholly new agenda (a paste) starts at its first step.
+                if !sections
+                    .iter()
+                    .any(|s| previous.agenda.sections.iter().any(|old| old.id == s.id))
+                {
+                    self.agenda.current_index = 0;
+                }
+                self.agenda.sections = sections
+                    .into_iter()
+                    .map(|section| {
+                        Ok(Section {
+                            id: required(section.id, "Section ID")?,
+                            title: required(section.title, "Section title")?,
+                            items: section
+                                .items
+                                .into_iter()
+                                .map(|item| {
+                                    Ok(AgendaItem {
+                                        id: required(item.id, "Item ID")?,
+                                        text: required(item.text, "Item text")?,
+                                        details: item
+                                            .details
+                                            .into_iter()
+                                            .map(|s| s.trim().to_owned())
+                                            .filter(|s| !s.is_empty())
+                                            .collect(),
+                                        ..item
+                                    })
+                                })
+                                .collect::<Result<_, String>>()?,
+                        })
+                    })
+                    .collect::<Result<_, String>>()?;
+            }
             AgendaEdit::ResetChecklist => {
                 for section in &mut self.agenda.sections {
                     for item in &mut section.items {
@@ -316,6 +354,40 @@ mod tests {
             .sections
             .iter()
             .all(|s| s.items.iter().all(|i| !i.done)));
+    }
+    #[test]
+    fn replacing_sections_keeps_the_current_section_by_id_and_rejects_blanks() {
+        let mut s = AgendaState::default();
+        let mut sections = s.agenda.sections.clone();
+        sections.remove(0);
+        sections[1].items[0].details = vec![" Gateway ".into(), "".into()];
+        s.edit(AgendaEdit::ReplaceSections { sections }).unwrap();
+        assert_eq!(s.agenda.sections[s.agenda.current_index].id, "architecture");
+        assert_eq!(s.agenda.sections[1].items[0].details, ["Gateway"]);
+        let mut blank = s.agenda.sections.clone();
+        blank[0].items.push(AgendaItem {
+            id: "x".into(),
+            text: " ".into(),
+            optional: false,
+            details: vec![],
+            done: false,
+        });
+        assert!(s
+            .edit(AgendaEdit::ReplaceSections { sections: blank })
+            .is_err());
+        let fresh = vec![Section {
+            id: "pasted".into(),
+            title: "Pasted".into(),
+            items: vec![],
+        }];
+        s.agenda.current_index = 1;
+        s.edit(AgendaEdit::ReplaceSections { sections: fresh })
+            .unwrap();
+        assert_eq!(s.agenda.current_index, 0);
+        s.edit(AgendaEdit::ReplaceSections { sections: vec![] })
+            .unwrap();
+        assert_eq!(s.agenda.current_index, 0);
+        s.validate().unwrap();
     }
     #[test]
     fn style_defaults_and_paper_opacity_and_invalid_edits() {

@@ -48,6 +48,12 @@ pub fn end_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
     }
     Ok(())
 }
+pub fn begin_sticky_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    begin_text_edit(window)
+}
+pub fn end_sticky_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    end_text_edit(window)
+}
 pub fn sample_color(_app: &tauri::AppHandle) -> Result<(), String> {
     Err("Use the web eyedropper on Windows".into())
 }

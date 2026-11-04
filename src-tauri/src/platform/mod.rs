@@ -98,6 +98,13 @@ pub fn begin_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
 pub fn end_text_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
     imp::end_text_edit(window)
 }
+/// Gives the sticky keyboard focus for inline agenda editing, then hands it back.
+pub fn begin_sticky_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    imp::begin_sticky_edit(window)
+}
+pub fn end_sticky_edit(window: &tauri::WebviewWindow) -> Result<(), String> {
+    imp::end_sticky_edit(window)
+}
 pub fn sample_color(app: &tauri::AppHandle) -> Result<(), String> {
     imp::sample_color(app)
 }
