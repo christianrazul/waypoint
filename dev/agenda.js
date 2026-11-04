@@ -85,6 +85,11 @@ export function editPreviewAgenda(state, edit) {
     case "compact":
       state.settings.compact = edit.compact;
       break;
+    case "scale":
+      if (edit.scale < 75 || edit.scale > 200)
+        throw new Error("Sticky text size must be between 75% and 200%");
+      state.settings.scale = edit.scale;
+      break;
     default:
       throw new Error("Unknown preview edit");
   }

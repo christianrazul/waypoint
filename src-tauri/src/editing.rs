@@ -60,6 +60,9 @@ pub enum AgendaEdit {
     Compact {
         compact: bool,
     },
+    Scale {
+        scale: u16,
+    },
 }
 
 fn required(text: String, label: &str) -> Result<String, String> {
@@ -249,6 +252,12 @@ impl AgendaState {
             AgendaEdit::Corner { corner } => self.settings.corner = corner,
             AgendaEdit::Display { display } => self.settings.display = display,
             AgendaEdit::Compact { compact } => self.settings.compact = compact,
+            AgendaEdit::Scale { scale } => {
+                if !agenda::SCALE_RANGE.contains(&scale) {
+                    return Err("Sticky text size must be between 75% and 200%".into());
+                }
+                self.settings.scale = scale;
+            }
         }
         self.agenda.current_index = current_id
             .and_then(|id| self.agenda.sections.iter().position(|s| s.id == id))
@@ -407,6 +416,9 @@ mod tests {
         })
         .unwrap();
         assert_eq!(s.settings.opacity, 72);
+        s.edit(AgendaEdit::Scale { scale: 150 }).unwrap();
+        assert_eq!(s.settings.scale, 150);
+        assert!(s.edit(AgendaEdit::Scale { scale: 50 }).is_err());
         assert!(s
             .edit(AgendaEdit::RenameSection {
                 section_id: "intro".into(),

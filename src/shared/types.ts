@@ -76,6 +76,8 @@ export interface StickySettings {
   accent: string;
   compact: boolean;
   display: "primary" | "cursor";
+  /** Text and layout size in percent (75–200). */
+  scale: number;
 }
 export interface AgendaState {
   agenda: Agenda;
@@ -106,7 +108,8 @@ export type AgendaEdit =
   | { type: "opacity"; opacity: number }
   | { type: "corner"; corner: StickySettings["corner"] }
   | { type: "display"; display: StickySettings["display"] }
-  | { type: "compact"; compact: boolean };
+  | { type: "compact"; compact: boolean }
+  | { type: "scale"; scale: number };
 
 export type ShortcutAction =
   "next" | "previous" | "toggleDrawing" | "clear" | "toggleSticky";

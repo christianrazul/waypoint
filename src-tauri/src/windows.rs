@@ -463,14 +463,20 @@ struct StickyFrame {
     y: f64,
     width: f64,
     height: f64,
+    content_width: f64,
     content_height: f64,
     max_content_height: f64,
+}
+
+fn sticky_width(scale: u16) -> f64 {
+    STICKY_WIDTH * f64::from(scale) / 100.0
 }
 
 fn sticky_frame(
     monitor: (f64, f64, f64, f64),
     corner: agenda::Corner,
     content_height: f64,
+    content_width: f64,
 ) -> StickyFrame {
     let (x, y, width, height) = monitor;
     let max_content_height = (height - 64.0 - STICKY_MARGIN * 2.0).max(1.0);
@@ -479,7 +485,7 @@ fn sticky_frame(
     let bottom = matches!(corner, agenda::Corner::Bl | agenda::Corner::Br);
     StickyFrame {
         x: if right {
-            x + width - 40.0 - STICKY_WIDTH - STICKY_MARGIN
+            x + width - 40.0 - content_width - STICKY_MARGIN
         } else {
             x + 40.0 - STICKY_MARGIN
         },
@@ -488,8 +494,9 @@ fn sticky_frame(
         } else {
             y + 32.0 - STICKY_MARGIN
         },
-        width: STICKY_WIDTH + STICKY_MARGIN * 2.0,
+        width: content_width + STICKY_MARGIN * 2.0,
         height: content_height + STICKY_MARGIN * 2.0,
+        content_width,
         content_height,
         max_content_height,
     }
@@ -497,7 +504,7 @@ fn sticky_frame(
 
 pub fn create_sticky(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let monitor = crate::displays::selected(app).map_err(std::io::Error::other)?;
-    let initial = sticky_frame(frame(&monitor), agenda::Corner::Bl, 320.0);
+    let initial = sticky_frame(frame(&monitor), agenda::Corner::Bl, 320.0, STICKY_WIDTH);
     let level = *app.state::<AppState>().level.lock().unwrap();
     let window = base_builder(app, STICKY, "sticky.html")
         .position(initial.x, initial.y)
@@ -585,7 +592,12 @@ pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
     app.state::<StickyLayout>()
         .dragging
         .store(false, Ordering::SeqCst);
-    let mut bounds = sticky_frame(frame(&monitor), state.settings.corner, height.ceil());
+    let mut bounds = sticky_frame(
+        frame(&monitor),
+        state.settings.corner,
+        height.ceil(),
+        sticky_width(state.settings.scale),
+    );
     let store = app
         .store(agenda::SETTINGS_FILE)
         .map_err(|e| e.to_string())?;
@@ -638,7 +650,7 @@ fn apply_custom_offset(
     }
     let (x, y, width, height) = monitor;
     let left = if matches!(corner, agenda::Corner::Tr | agenda::Corner::Br) {
-        width - STICKY_WIDTH - offset.x
+        width - bounds.content_width - offset.x
     } else {
         offset.x
     };
@@ -647,7 +659,7 @@ fn apply_custom_offset(
     } else {
         offset.y
     };
-    bounds.x = x + left.clamp(0.0, (width - STICKY_WIDTH).max(0.0)) - STICKY_MARGIN;
+    bounds.x = x + left.clamp(0.0, (width - bounds.content_width).max(0.0)) - STICKY_MARGIN;
     bounds.y = y + top.clamp(0.0, (height - bounds.content_height).max(0.0)) - STICKY_MARGIN;
 }
 
@@ -668,14 +680,15 @@ fn remember_sticky_position(
         .map_err(|_| "Sticky layout is unavailable")?
         .unwrap_or(320.0);
     let (x, y, width, screen_height) = frame(&monitor);
-    let left = (position.x + STICKY_MARGIN - x).clamp(0.0, (width - STICKY_WIDTH).max(0.0));
+    let note_width = sticky_width(state.settings.scale);
+    let left = (position.x + STICKY_MARGIN - x).clamp(0.0, (width - note_width).max(0.0));
     let top = (position.y + STICKY_MARGIN - y).clamp(0.0, (screen_height - height).max(0.0));
     let offset = Position {
         x: if matches!(
             state.settings.corner,
             agenda::Corner::Tr | agenda::Corner::Br
         ) {
-            width - left - STICKY_WIDTH
+            width - left - note_width
         } else {
             left
         },
@@ -762,7 +775,12 @@ mod tests {
     use super::*;
     #[test]
     fn custom_offsets_follow_the_selected_anchor_and_clamp_to_display() {
-        let mut bounds = sticky_frame((100.0, 200.0, 1440.0, 900.0), agenda::Corner::Br, 300.0);
+        let mut bounds = sticky_frame(
+            (100.0, 200.0, 1440.0, 900.0),
+            agenda::Corner::Br,
+            300.0,
+            STICKY_WIDTH,
+        );
         apply_custom_offset(
             &mut bounds,
             (100.0, 200.0, 1440.0, 900.0),
@@ -785,8 +803,18 @@ mod tests {
     }
     #[test]
     fn resizing_keeps_the_visible_bottom_left_anchor_fixed() {
-        let short = sticky_frame((0.0, 0.0, 1440.0, 900.0), agenda::Corner::Bl, 150.0);
-        let tall = sticky_frame((0.0, 0.0, 1440.0, 900.0), agenda::Corner::Bl, 350.0);
+        let short = sticky_frame(
+            (0.0, 0.0, 1440.0, 900.0),
+            agenda::Corner::Bl,
+            150.0,
+            STICKY_WIDTH,
+        );
+        let tall = sticky_frame(
+            (0.0, 0.0, 1440.0, 900.0),
+            agenda::Corner::Bl,
+            350.0,
+            STICKY_WIDTH,
+        );
         assert_eq!(short.x + STICKY_MARGIN, 40.0);
         assert_eq!(short.y + STICKY_MARGIN + short.content_height, 868.0);
         assert_eq!(tall.y + STICKY_MARGIN + tall.content_height, 868.0);
@@ -800,7 +828,7 @@ mod tests {
             agenda::Corner::Bl,
             agenda::Corner::Br,
         ] {
-            let bounds = sticky_frame(monitor, corner, 200.0);
+            let bounds = sticky_frame(monitor, corner, 200.0, STICKY_WIDTH);
             let right = matches!(corner, agenda::Corner::Tr | agenda::Corner::Br);
             let bottom = matches!(corner, agenda::Corner::Bl | agenda::Corner::Br);
             assert_eq!(
@@ -814,8 +842,25 @@ mod tests {
         }
     }
     #[test]
+    fn larger_text_widens_the_note_and_keeps_the_right_anchor() {
+        let bounds = sticky_frame(
+            (0.0, 0.0, 1440.0, 900.0),
+            agenda::Corner::Br,
+            200.0,
+            sticky_width(150),
+        );
+        assert_eq!(bounds.content_width, 690.0);
+        assert_eq!(bounds.width, 690.0 + STICKY_MARGIN * 2.0);
+        assert_eq!(bounds.x + STICKY_MARGIN + bounds.content_width, 1400.0);
+    }
+    #[test]
     fn oversized_content_is_clamped_without_moving_the_bottom_anchor() {
-        let bounds = sticky_frame((0.0, 0.0, 1440.0, 900.0), agenda::Corner::Bl, 10000.0);
+        let bounds = sticky_frame(
+            (0.0, 0.0, 1440.0, 900.0),
+            agenda::Corner::Bl,
+            10000.0,
+            STICKY_WIDTH,
+        );
         assert_eq!(bounds.content_height, bounds.max_content_height);
         assert!(bounds.y >= 0.0);
         assert_eq!(bounds.y + STICKY_MARGIN + bounds.content_height, 868.0);

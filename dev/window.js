@@ -84,6 +84,7 @@ mockIPC(
       case "resize_sticky": {
         const limit = window.parent.innerHeight - 160;
         window.frameElement.style.height = `${Math.min(args.height, limit) + 96}px`;
+        window.frameElement.style.width = `${(460 * (bridge.agenda.settings.scale ?? 100)) / 100 + 96}px`;
         bridge.placeSticky();
         return limit;
       }

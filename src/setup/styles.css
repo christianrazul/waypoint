@@ -291,7 +291,8 @@
   color: #111827;
 }
 .style-option[aria-pressed="true"],
-.position-options button[aria-pressed="true"] {
+.position-options button[aria-pressed="true"],
+.text-size-options button[aria-pressed="true"] {
   border: 2px solid var(--setup-accent, #ffd25a);
 }
 .group-label output {
@@ -380,4 +381,31 @@
 .shortcut-row button.recording {
   border-color: var(--setup-accent, #ffd25a);
   color: var(--setup-accent, #ffd25a);
+}
+
+.text-size-options {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.text-size-options button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 52px;
+  border: 1px solid #3a424f;
+  border-radius: 8px;
+  background: #1c2129;
+  color: #a8b0bc;
+  font: 500 11px var(--wp-font);
+  cursor: pointer;
+}
+.text-size-options button > span {
+  font-weight: 600;
+  line-height: 1;
+}
+.text-size-options button[aria-pressed="true"] {
+  color: #fff;
 }
