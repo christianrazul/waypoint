@@ -1,6 +1,21 @@
 # Packaging and distribution
 
-Waypoint targets macOS 13+ and Windows 10/11. The current artifacts are local/test
+## Personal-use release (current plan)
+
+Waypoint v0.1.0 is built for the author's own Mac, not public distribution. Developer ID
+signing and notarization are intentionally skipped. A locally built, ad hoc signed app
+carries no quarantine flag, so it launches normally from `/Applications`. If a copy
+transferred to another Mac is blocked by Gatekeeper, right-click → Open, or run
+`xattr -dr com.apple.quarantine /Applications/Waypoint.app`. The sections below
+describe the full distribution path for if that plan changes.
+
+```bash
+./scripts/package-macos.sh
+ditto src-tauri/target/release/bundle/macos/Waypoint.app /Applications/Waypoint.app
+```
+
+Waypoint v1 targets macOS 13+. Windows 10/11 deployment and desktop acceptance are
+deferred until after v1; the existing Windows build pipeline is retained. The current artifacts are local/test
 builds, without a Developer ID notarization ticket or Windows publisher signature.
 
 ## macOS app and DMG
@@ -69,7 +84,7 @@ public-API implementation and review.
 [Tauri configuration](https://v2.tauri.app/reference/config/#macosprivateapi),
 [Apple guideline 2.5.1](https://developer.apple.com/app-store/review/guidelines/#software-requirements).
 
-## Windows installer
+## Windows installer (post-v1)
 
 Build on Windows with Visual Studio C++ Build Tools, the Windows SDK, WebView2,
 Node, pnpm, and Rust installed:

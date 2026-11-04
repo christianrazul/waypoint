@@ -2,6 +2,9 @@
 
 Screen annotation and agenda sticky for presenters. Tauri 2 + React 18.
 
+V1 is macOS-only and built for personal use (unsigned, not notarized; see [packaging](docs/packaging.md)). Windows implementation and build instructions are retained for
+post-v1 work; Windows desktop acceptance is deferred until after v1 deployment.
+
 ## Status
 
 M5 implementation is ready for validation: overlays per display, native display-change
@@ -9,15 +12,17 @@ notifications, Primary / Cursor placement, configurable shortcuts, and release p
 On macOS, annotation sessions are scoped to each display and Space; the hotbar and
 agenda sticky remain available across Spaces. Native A/B Space isolation and restoration
 were confirmed, along with restoration and keyboard focus in one full-screen slideshow
-scenario. The remaining acceptance checks are pending.
+scenario. Chan has also confirmed the remaining Mac edge cases as good.
 Annotations and history stay in memory per display, including completed-session restoration
 after reconnecting a display. The macOS eyedropper remains behind its M2 feature flag.
 
-M5 is **not accepted yet**: Windows slideshow behavior and the remaining hot-plug
-variants need manual review; idle unplug/reconnect was confirmed on this Mac; native Retina latency remains unverified, and the measured total memory
-footprint exceeds the 150 MB target. See [M5 verification](docs/m5-verification.md) for the
-results and outstanding checks. [Packaging notes](docs/packaging.md) cover installers,
-Developer ID signing, notarization, and distribution limitations.
+M5 remains open for native performance verification. Retina input-to-display latency
+is unverified; the earlier two-display build measured 286 MiB total physical footprint,
+above the 150 MB target. That profile predates Space-scoped sessions and needs a new
+baseline. Further external-shortcut-conflict testing is deferred by agreement.
+See [M5 verification](docs/m5-verification.md) for the recorded results and scope changes.
+[Packaging notes](docs/packaging.md) cover installers, Developer ID signing,
+notarization, and distribution limitations.
 
 The [v1 roadmap](https://github.com/christianrazul/waypoint/issues/1) and
 [M5 specification](https://github.com/christianrazul/waypoint/issues/7) define the scope.
@@ -26,7 +31,8 @@ Previous checks: [M4](docs/m4-verification.md), [M3](docs/m3-verification.md),
 
 ## Requirements
 
-- macOS 13+, or Windows 10/11 with WebView2
+- V1: macOS 13+; the current validated build is Apple Silicon.
+- Post-v1 Windows builds: Windows 10/11 with WebView2.
 - macOS: Xcode Command Line Tools. Windows builds: Visual Studio C++ Build Tools + Windows SDK.
 - Rust 1.80+ (M0 tested with 1.98.1), Node 20+ (local 24.14.1; CI pins 24.13.0), pnpm 10
 

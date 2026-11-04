@@ -1,7 +1,13 @@
 # M5 verification
 
 Scope: [M5 issue #7](https://github.com/christianrazul/waypoint/issues/7).
-This milestone remains open pending the manual checks and performance targets below.
+The original issue includes Windows. Chan revised v1 scope on 2026-11-04: v1 is
+macOS-only; Windows desktop acceptance and deployment are deferred until after v1
+ships. Existing Windows source/CI is retained. Chan also reported the remaining Mac
+edge cases as good and deferred further external-shortcut-conflict testing. Deferred
+checks are not recorded as test passes. Native Retina latency remains unmeasured,
+and the historical memory/CPU profile predates the Space-session changes.
+This milestone remains open for performance verification under the revised scope.
 
 ## Implemented behavior
 
@@ -228,7 +234,8 @@ Chan confirmed the native shortcut checkpoint on 2026-11-03: a changed Next-sect
 binding worked outside setup, assigning another Waypoint action's binding was rejected
 while preserving the working key, Esc canceled recording without a change, and the
 saved binding worked after quit/relaunch. This verifies Waypoint duplicate handling;
-an actual OS/other-application registration conflict has not been tested.
+an actual OS/other-application registration conflict has not been tested and was
+deferred by Chan on 2026-11-04.
 
 Chan confirmed independent display Spaces on 2026-11-03: switching Spaces on one
 monitor left the other monitor's drawings unchanged; switching back restored the
@@ -238,9 +245,10 @@ Chan confirmed the text-editing Space-switch checkpoint on 2026-11-04: text type
 in Space A without an explicit commit was committed in A after switching away,
 was absent from B, and normal application keyboard shortcuts worked afterward.
 
-Switching during a pen gesture, unplugging while armed or editing text, ending the
-slideshow/returning to its desktop and visibility during the Space animation remain
-pending.
+On 2026-11-04, Chan reported the remaining Mac edge cases as all good, accepting
+the remaining pen-gesture Space switching, armed/text-editing unplug scenarios,
+slideshow exit and Space-animation checks. This is user-reported acceptance on the
+current Mac setup, not evidence of every macOS version or mixed-DPI configuration.
 The read-only private ABI is not guaranteed across macOS releases.
 The final candidate passed macOS app signing verification and DMG checksum validation:
 
@@ -264,15 +272,16 @@ Sources checked against implementation:
 
 - [ ] Draw on every physical monitor, including negative origins and mixed DPI; move
       windows between displays and verify physical placement and canvas sharpness.
-- [ ] Plug/unplug/rearrange monitors while idle, armed, and typing. Check overlay lifecycle,
-      completed history restoration, fallback selection, and clamped hotbar/sticky/setup.
+- [x] Mac unplug/reconnect while idle, armed, and typing: user-reported acceptance.
+      Separate hardware/mixed-DPI/rearrangement coverage remains unverified.
 - [ ] Check Primary / Cursor invocation behavior and per-display placement restoration.
-- [ ] Change action bindings; verify actual OS delivery, an OS/other-app conflict, duplicate
-      rejection, cancellation, persistence across quit/relaunch, and armed-only undo/redo.
-- [ ] On Windows 10/11 over full-screen PowerPoint: topmost, skip taskbar, non-activating
+- [x] Native binding changes, duplicates, cancellation and persistence: user-reported acceptance.
+      External OS/other-app conflict testing is deferred by agreement.
+- [ ] Post-v1: on Windows 10/11 over full-screen PowerPoint: topmost, skip taskbar, non-activating
       controls, click-through, text/setup focus restoration, and EyeDropper availability.
-- [ ] Validate the downloaded NSIS installer on a desktop, including WebView2 installation.
-- [ ] Review Keynote/PowerPoint/Google Slides focus again after the multi-monitor changes.
+- [ ] Post-v1: validate the NSIS installer on a Windows desktop, including WebView2 installation.
+- [x] Mac slideshow focus and restoration: user-reported acceptance of one unspecified
+      presentation app, plus the remaining Mac edge cases; no claim of every app/version.
 - [ ] Measure native Retina pen/compositor latency and multi-monitor/visible-setup memory.
 - [ ] Review and implement an agreed memory reduction if the 150 MB total remains required.
 - [ ] Sign/notarize and validate trusted distribution artifacts when credentials are available.
