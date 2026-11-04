@@ -83,7 +83,7 @@ There is no Dock icon. Use the pen-nib icon in the menu bar:
 - Eraser: click or drag over an object's outline to delete the whole object. A drag is one undo step.
 - Colors: pink, blue, green, or the color wheel's saturation/brightness and hue controls.
 - Clear all: remove annotations; undo restores them. Close: hide the hotbar and return to pass-through.
-- Drag the grip to move the hotbar. Its position survives restarts.
+- Drag any empty part of the hotbar to move it. Its position survives restarts.
 
 The hotbar starts visible with drawing off. The sticky first opens on section 3 of the seed
 agenda, "Architecture overview", in the bottom-left corner. Its last visibility, current section,

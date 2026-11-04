@@ -14,9 +14,9 @@ pub const HOTBAR: &str = "hotbar";
 pub const STICKY: &str = "sticky";
 pub const FLOATING: &[&str] = &[HOTBAR, STICKY];
 const WIDTH: f64 = if cfg!(all(target_os = "macos", not(feature = "native-eyedropper"))) {
-    844.0
+    822.0
 } else {
-    894.0
+    872.0
 };
 const HEIGHT: f64 = 112.0;
 const PICKER_HEIGHT: f64 = 384.0;

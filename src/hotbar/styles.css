@@ -25,6 +25,7 @@ button:disabled {
   border-radius: var(--wp-bar-radius);
   background: var(--wp-bar-bg);
   box-shadow: var(--wp-bar-shadow);
+  cursor: grab;
 }
 .button-group {
   display: flex;
@@ -58,27 +59,6 @@ button:disabled {
 }
 .disabled-control .icon-button {
   opacity: 0.45;
-}
-.grip {
-  width: 16px;
-  height: 32px;
-  display: grid;
-  grid-template-columns: repeat(2, 3px);
-  grid-template-rows: repeat(3, 3px);
-  justify-content: center;
-  align-content: center;
-  gap: 4px;
-  cursor: grab;
-  flex-shrink: 0;
-}
-.grip i {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: #6b7280;
-}
-.grip:active {
-  cursor: grabbing;
 }
 .swatch {
   width: 20px;
