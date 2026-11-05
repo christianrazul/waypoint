@@ -84,9 +84,36 @@ mockIPC(
       case "resize_sticky": {
         const limit = window.parent.innerHeight - 160;
         window.frameElement.style.height = `${Math.min(args.height, limit) + 96}px`;
-        window.frameElement.style.width = `${(460 * (bridge.agenda.settings.scale ?? 100)) / 100 + 96}px`;
+        window.frameElement.style.width = `${(bridge.stickySize?.width ?? (460 * (bridge.agenda.settings.scale ?? 100)) / 100) + 96}px`;
         bridge.placeSticky();
         return limit;
+      }
+      // The preview resizes the note in place; it does not move the frame for left/top edges.
+      case "get_sticky_size":
+        return { width: null, height: null, ...bridge.stickySize };
+      case "begin_sticky_resize":
+        bridge.stickyResize = { width: args.width, height: args.height };
+        break;
+      case "resize_sticky_to": {
+        const start = bridge.stickyResize;
+        const { edges, dx, dy } = args;
+        const size = { width: null, height: null, ...bridge.stickySize };
+        if (edges.left || edges.right)
+          size.width = Math.max(240, Math.round(start.width + (edges.right ? dx : -dx)));
+        if (edges.top || edges.bottom)
+          size.height = Math.max(120, Math.round(start.height + (edges.bottom ? dy : -dy)));
+        bridge.stickySize = size;
+        window.frameElement.style.width = `${(size.width ?? 460) + 96}px`;
+        return size;
+      }
+      case "end_sticky_resize":
+        break;
+      case "reset_sticky_size": {
+        const size = { width: null, height: null, ...bridge.stickySize };
+        if (args.width) size.width = null;
+        if (args.height) size.height = null;
+        bridge.stickySize = size;
+        return size;
       }
       case "get_drawing_state":
         return { ...bridge.state };

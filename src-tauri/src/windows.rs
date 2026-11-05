@@ -23,12 +23,47 @@ const PICKER_HEIGHT: f64 = 384.0;
 const MARGIN: f64 = 24.0;
 const STICKY_WIDTH: f64 = 460.0;
 const STICKY_MARGIN: f64 = 48.0;
+const STICKY_MIN_WIDTH: f64 = 240.0;
+const STICKY_MIN_HEIGHT: f64 = 120.0;
+const STICKY_SIZE_KEY: &str = "sticky-size";
 
 #[derive(Default)]
 pub struct StickyLayout {
     height: Mutex<Option<f64>>,
     dragging: AtomicBool,
     editing: AtomicBool,
+    resize: Mutex<Option<ResizeStart>>,
+}
+
+/// The note size the user dragged to. `None` keeps the default: width follows the text
+/// size, height follows the content.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct StickySize {
+    pub width: Option<f64>,
+    pub height: Option<f64>,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize)]
+pub struct ResizeEdges {
+    #[serde(default)]
+    pub left: bool,
+    #[serde(default)]
+    pub right: bool,
+    #[serde(default)]
+    pub top: bool,
+    #[serde(default)]
+    pub bottom: bool,
+}
+
+/// The note's frame when a resize drag began, in display-local logical points.
+#[derive(Clone, Copy, Debug)]
+struct ResizeStart {
+    left: f64,
+    top: f64,
+    /// Measured frame height (note plus the paper style's rotation allowance).
+    frame_height: f64,
+    width: f64,
+    height: f64,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -472,6 +507,33 @@ fn sticky_width(scale: u16) -> f64 {
     STICKY_WIDTH * f64::from(scale) / 100.0
 }
 
+fn max_content_height(screen_height: f64) -> f64 {
+    (screen_height - 64.0 - STICKY_MARGIN * 2.0).max(1.0)
+}
+
+fn valid_length(value: Option<f64>) -> Option<f64> {
+    value.filter(|v| v.is_finite() && *v >= 1.0)
+}
+
+fn stored_size(app: &AppHandle) -> StickySize {
+    let size = app
+        .store(agenda::SETTINGS_FILE)
+        .ok()
+        .and_then(|store| store.get(STICKY_SIZE_KEY))
+        .and_then(|v| serde_json::from_value::<StickySize>(v).ok())
+        .unwrap_or_default();
+    StickySize {
+        width: valid_length(size.width),
+        height: valid_length(size.height),
+    }
+}
+
+fn note_width(app: &AppHandle, scale: u16) -> f64 {
+    stored_size(app)
+        .width
+        .unwrap_or_else(|| sticky_width(scale))
+}
+
 fn sticky_frame(
     monitor: (f64, f64, f64, f64),
     corner: agenda::Corner,
@@ -479,7 +541,7 @@ fn sticky_frame(
     content_width: f64,
 ) -> StickyFrame {
     let (x, y, width, height) = monitor;
-    let max_content_height = (height - 64.0 - STICKY_MARGIN * 2.0).max(1.0);
+    let max_content_height = max_content_height(height);
     let content_height = content_height.clamp(1.0, max_content_height);
     let right = matches!(corner, agenda::Corner::Tr | agenda::Corner::Br);
     let bottom = matches!(corner, agenda::Corner::Bl | agenda::Corner::Br);
@@ -596,7 +658,7 @@ pub fn resize_sticky(app: &AppHandle, height: f64) -> Result<f64, String> {
         frame(&monitor),
         state.settings.corner,
         height.ceil(),
-        sticky_width(state.settings.scale),
+        note_width(app, state.settings.scale),
     );
     let store = app
         .store(agenda::SETTINGS_FILE)
@@ -680,27 +742,16 @@ fn remember_sticky_position(
         .map_err(|_| "Sticky layout is unavailable")?
         .unwrap_or(320.0);
     let (x, y, width, screen_height) = frame(&monitor);
-    let note_width = sticky_width(state.settings.scale);
-    let left = (position.x + STICKY_MARGIN - x).clamp(0.0, (width - note_width).max(0.0));
-    let top = (position.y + STICKY_MARGIN - y).clamp(0.0, (screen_height - height).max(0.0));
-    let offset = Position {
-        x: if matches!(
-            state.settings.corner,
-            agenda::Corner::Tr | agenda::Corner::Br
-        ) {
-            width - left - note_width
-        } else {
-            left
-        },
-        y: if matches!(
-            state.settings.corner,
-            agenda::Corner::Bl | agenda::Corner::Br
-        ) {
-            screen_height - top - height
-        } else {
-            top
-        },
-    };
+    let offset = corner_offset(
+        state.settings.corner,
+        (width, screen_height),
+        (
+            position.x + STICKY_MARGIN - x,
+            position.y + STICKY_MARGIN - y,
+            note_width(app, state.settings.scale),
+            height,
+        ),
+    );
     app.store(agenda::SETTINGS_FILE)
         .map_err(|e| e.to_string())?
         .set(
@@ -724,6 +775,189 @@ pub fn start_sticky_drag(app: &AppHandle) -> Result<(), String> {
         return Err(error.to_string());
     }
     Ok(())
+}
+
+/// Offset of a note frame from the anchor corner, as stored under the sticky position key.
+fn corner_offset(
+    corner: agenda::Corner,
+    screen: (f64, f64),
+    rect: (f64, f64, f64, f64),
+) -> Position {
+    let (screen_width, screen_height) = screen;
+    let (left, top, width, height) = rect;
+    let left = left.clamp(0.0, (screen_width - width).max(0.0));
+    let top = top.clamp(0.0, (screen_height - height).max(0.0));
+    Position {
+        x: if matches!(corner, agenda::Corner::Tr | agenda::Corner::Br) {
+            screen_width - left - width
+        } else {
+            left
+        },
+        y: if matches!(corner, agenda::Corner::Bl | agenda::Corner::Br) {
+            screen_height - top - height
+        } else {
+            top
+        },
+    }
+}
+
+/// New note size and frame origin for a resize drag of `delta` from `start`, keeping the
+/// edges opposite the dragged ones where they were.
+fn resized_rect(
+    start: ResizeStart,
+    edges: ResizeEdges,
+    delta: (f64, f64),
+    screen: (f64, f64),
+) -> (f64, f64, f64, f64) {
+    let (dx, dy) = delta;
+    let pad = (start.frame_height - start.height).max(0.0);
+    let mut width = start.width;
+    if edges.right {
+        width += dx;
+    }
+    if edges.left {
+        width -= dx;
+    }
+    let mut height = start.height;
+    if edges.bottom {
+        height += dy;
+    }
+    if edges.top {
+        height -= dy;
+    }
+    let max_width = (screen.0 - 16.0).max(STICKY_MIN_WIDTH);
+    let max_height = (max_content_height(screen.1) - pad).max(STICKY_MIN_HEIGHT);
+    let width = width.clamp(STICKY_MIN_WIDTH, max_width).round();
+    let height = height.clamp(STICKY_MIN_HEIGHT, max_height).round();
+    let left = if edges.left {
+        start.left + start.width - width
+    } else {
+        start.left
+    };
+    let top = if edges.top {
+        start.top + start.height - height
+    } else {
+        start.top
+    };
+    (left, top, width, height)
+}
+
+pub fn get_sticky_size(app: &AppHandle) -> StickySize {
+    stored_size(app)
+}
+
+/// Snapshots the note's frame so each resize step is computed from where the drag began.
+/// `width` and `height` are the note's rendered size, without the paper style's allowance.
+pub fn begin_sticky_resize(app: &AppHandle, width: f64, height: f64) -> Result<(), String> {
+    if !width.is_finite() || !height.is_finite() || width < 1.0 || height < 1.0 {
+        return Err("Sticky size must be positive and finite".into());
+    }
+    let window = app
+        .get_webview_window(STICKY)
+        .ok_or("The sticky window is unavailable")?;
+    let monitor = crate::displays::selected(app)?;
+    let layout = app.state::<StickyLayout>();
+    layout.dragging.store(false, Ordering::SeqCst);
+    let frame_height = layout
+        .height
+        .lock()
+        .map_err(|_| "Sticky layout is unavailable")?
+        .unwrap_or(height);
+    let physical = window.outer_position().map_err(|e| e.to_string())?;
+    let scale = monitor.scale_factor();
+    *layout
+        .resize
+        .lock()
+        .map_err(|_| "Sticky layout is unavailable")? = Some(ResizeStart {
+        left: (physical.x - monitor.position().x) as f64 / scale + STICKY_MARGIN,
+        top: (physical.y - monitor.position().y) as f64 / scale + STICKY_MARGIN,
+        frame_height: frame_height.max(height),
+        width,
+        height,
+    });
+    Ok(())
+}
+
+pub fn resize_sticky_to(
+    app: &AppHandle,
+    edges: ResizeEdges,
+    dx: f64,
+    dy: f64,
+) -> Result<StickySize, String> {
+    if !dx.is_finite() || !dy.is_finite() {
+        return Err("Sticky resize must be finite".into());
+    }
+    let start = app
+        .state::<StickyLayout>()
+        .resize
+        .lock()
+        .map_err(|_| "Sticky layout is unavailable")?
+        .ok_or("No sticky resize is in progress")?;
+    let state = agenda::get(app)?;
+    let monitor = crate::displays::selected(app)?;
+    let (_, _, screen_width, screen_height) = frame(&monitor);
+    let (left, top, width, height) =
+        resized_rect(start, edges, (dx, dy), (screen_width, screen_height));
+    let frame_height = start.frame_height + height - start.height;
+    let mut size = stored_size(app);
+    if edges.left || edges.right {
+        size.width = Some(width);
+    }
+    if edges.top || edges.bottom {
+        size.height = Some(height);
+    }
+    let offset = corner_offset(
+        state.settings.corner,
+        (screen_width, screen_height),
+        (left, top, width, frame_height),
+    );
+    let store = app
+        .store(agenda::SETTINGS_FILE)
+        .map_err(|e| e.to_string())?;
+    store.set(
+        STICKY_SIZE_KEY,
+        serde_json::to_value(size).map_err(|e| e.to_string())?,
+    );
+    store.set(
+        sticky_position_key(app, &monitor),
+        serde_json::to_value(offset).map_err(|e| e.to_string())?,
+    );
+    resize_sticky(app, frame_height)?;
+    Ok(size)
+}
+
+pub fn end_sticky_resize(app: &AppHandle) -> Result<(), String> {
+    app.state::<StickyLayout>()
+        .resize
+        .lock()
+        .map_err(|_| "Sticky layout is unavailable")?
+        .take();
+    app.store(agenda::SETTINGS_FILE)
+        .map_err(|e| e.to_string())?
+        .save()
+        .map_err(|e| e.to_string())
+}
+
+/// Returns a dragged dimension to its default: width follows the text size again, height
+/// follows the content again.
+pub fn reset_sticky_size(app: &AppHandle, width: bool, height: bool) -> Result<StickySize, String> {
+    let mut size = stored_size(app);
+    if width {
+        size.width = None;
+    }
+    if height {
+        size.height = None;
+    }
+    let store = app
+        .store(agenda::SETTINGS_FILE)
+        .map_err(|e| e.to_string())?;
+    store.set(
+        STICKY_SIZE_KEY,
+        serde_json::to_value(size).map_err(|e| e.to_string())?,
+    );
+    store.save().map_err(|e| e.to_string())?;
+    refresh_sticky(app)?;
+    Ok(size)
 }
 
 pub fn reset_sticky_position(app: &AppHandle) -> Result<(), String> {
@@ -852,6 +1086,58 @@ mod tests {
         assert_eq!(bounds.content_width, 690.0);
         assert_eq!(bounds.width, 690.0 + STICKY_MARGIN * 2.0);
         assert_eq!(bounds.x + STICKY_MARGIN + bounds.content_width, 1400.0);
+    }
+    #[test]
+    fn resizing_from_the_left_and_top_keeps_the_opposite_edges_fixed() {
+        let start = ResizeStart {
+            left: 100.0,
+            top: 200.0,
+            frame_height: 310.0,
+            width: 460.0,
+            height: 300.0,
+        };
+        let edges = ResizeEdges {
+            left: true,
+            top: true,
+            ..Default::default()
+        };
+        let (left, top, width, height) = resized_rect(start, edges, (-40.0, 50.0), (1440.0, 900.0));
+        assert_eq!((width, height), (500.0, 250.0));
+        assert_eq!(left + width, 560.0);
+        assert_eq!(top + height, 500.0);
+    }
+    #[test]
+    fn resizing_clamps_to_the_minimum_and_the_display() {
+        let start = ResizeStart {
+            left: 0.0,
+            top: 0.0,
+            frame_height: 300.0,
+            width: 460.0,
+            height: 300.0,
+        };
+        let edges = ResizeEdges {
+            right: true,
+            bottom: true,
+            ..Default::default()
+        };
+        let small = resized_rect(start, edges, (-1000.0, -1000.0), (1440.0, 900.0));
+        assert_eq!((small.2, small.3), (STICKY_MIN_WIDTH, STICKY_MIN_HEIGHT));
+        let large = resized_rect(start, edges, (5000.0, 5000.0), (1440.0, 900.0));
+        assert_eq!((large.2, large.3), (1424.0, max_content_height(900.0)));
+        let left = ResizeEdges {
+            left: true,
+            ..Default::default()
+        };
+        let (x, _, width, _) = resized_rect(start, left, (1000.0, 0.0), (1440.0, 900.0));
+        assert_eq!(x + width, 460.0);
+    }
+    #[test]
+    fn corner_offsets_measure_from_the_anchor() {
+        let rect = (100.0, 200.0, 400.0, 300.0);
+        let br = corner_offset(agenda::Corner::Br, (1440.0, 900.0), rect);
+        assert_eq!((br.x, br.y), (940.0, 400.0));
+        let tl = corner_offset(agenda::Corner::Tl, (1440.0, 900.0), rect);
+        assert_eq!((tl.x, tl.y), (100.0, 200.0));
     }
     #[test]
     fn oversized_content_is_clamped_without_moving_the_bottom_anchor() {

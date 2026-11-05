@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-end-sticky-resize"
+description = "Enables the end_sticky_resize command without any pre-configured scope."
+commands.allow = ["end_sticky_resize"]
+
+[[permission]]
+identifier = "deny-end-sticky-resize"
+description = "Denies the end_sticky_resize command without any pre-configured scope."
+commands.deny = ["end_sticky_resize"]

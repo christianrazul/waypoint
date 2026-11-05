@@ -210,6 +210,36 @@ fn resize_sticky(app: AppHandle, height: f64) -> Result<f64, String> {
 }
 
 #[tauri::command]
+fn get_sticky_size(app: AppHandle) -> windows::StickySize {
+    windows::get_sticky_size(&app)
+}
+#[tauri::command]
+fn begin_sticky_resize(app: AppHandle, width: f64, height: f64) -> Result<(), String> {
+    windows::begin_sticky_resize(&app, width, height)
+}
+#[tauri::command]
+fn resize_sticky_to(
+    app: AppHandle,
+    edges: windows::ResizeEdges,
+    dx: f64,
+    dy: f64,
+) -> Result<windows::StickySize, String> {
+    windows::resize_sticky_to(&app, edges, dx, dy)
+}
+#[tauri::command]
+fn end_sticky_resize(app: AppHandle) -> Result<(), String> {
+    windows::end_sticky_resize(&app)
+}
+#[tauri::command]
+fn reset_sticky_size(
+    app: AppHandle,
+    width: bool,
+    height: bool,
+) -> Result<windows::StickySize, String> {
+    windows::reset_sticky_size(&app, width, height)
+}
+
+#[tauri::command]
 fn edit_agenda(app: AppHandle, edit: editing::AgendaEdit) -> Result<agenda::AgendaState, String> {
     editing::apply(&app, edit)
 }
@@ -325,6 +355,11 @@ pub fn run() {
             navigate_agenda,
             set_agenda_item_done,
             resize_sticky,
+            get_sticky_size,
+            begin_sticky_resize,
+            resize_sticky_to,
+            end_sticky_resize,
+            reset_sticky_size,
             edit_agenda,
             begin_sticky_edit,
             end_sticky_edit,

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-reset-sticky-size"
+description = "Enables the reset_sticky_size command without any pre-configured scope."
+commands.allow = ["reset_sticky_size"]
+
+[[permission]]
+identifier = "deny-reset-sticky-size"
+description = "Denies the reset_sticky_size command without any pre-configured scope."
+commands.deny = ["reset_sticky_size"]

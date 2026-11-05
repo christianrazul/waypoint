@@ -5,14 +5,17 @@
   padding: 48px;
 }
 .sticky-frame {
-  width: calc(var(--wp-sticky-width) * var(--sticky-scale));
+  width: var(--sticky-width, calc(var(--wp-sticky-width) * var(--sticky-scale)));
+}
+.sticky-box {
+  position: relative;
 }
 .sticky {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: calc(10px * var(--sticky-scale));
-  width: calc(var(--wp-sticky-width) * var(--sticky-scale));
+  width: var(--sticky-width, calc(var(--wp-sticky-width) * var(--sticky-scale)));
   padding: calc(16px * var(--sticky-scale)) calc(18px * var(--sticky-scale));
   border: 1px solid var(--wp-sticky-border);
   border-radius: calc(14px * var(--sticky-scale));
@@ -30,6 +33,10 @@
   color: var(--note-label, #c7cdd6);
 }
 .sticky-header > :first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: calc(11px * var(--sticky-scale));
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -136,6 +143,8 @@
   line-height: 1.5;
 }
 .sticky-footer {
+  /* Stays at the bottom when the note is resized taller than its content. */
+  margin-top: auto;
   display: flex;
   align-items: center;
   gap: calc(10px * var(--sticky-scale));
@@ -281,4 +290,66 @@
 }
 .checklist-row > span {
   flex: 1;
+}
+
+/* Resize zones straddle the note's border. A near-zero fill keeps them hit-testable on
+   macOS, which passes clicks through fully transparent window pixels. */
+.sticky-resize {
+  position: absolute;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.01);
+  touch-action: none;
+}
+.sticky-resize-n,
+.sticky-resize-s {
+  left: 10px;
+  right: 10px;
+  height: 8px;
+  cursor: ns-resize;
+}
+.sticky-resize-n {
+  top: -4px;
+}
+.sticky-resize-s {
+  bottom: -4px;
+}
+.sticky-resize-e,
+.sticky-resize-w {
+  top: 10px;
+  bottom: 10px;
+  width: 8px;
+  cursor: ew-resize;
+}
+.sticky-resize-e {
+  right: -4px;
+}
+.sticky-resize-w {
+  left: -4px;
+}
+.sticky-resize-ne,
+.sticky-resize-nw,
+.sticky-resize-se,
+.sticky-resize-sw {
+  width: 14px;
+  height: 14px;
+}
+.sticky-resize-nw {
+  top: -4px;
+  left: -4px;
+  cursor: nwse-resize;
+}
+.sticky-resize-se {
+  bottom: -4px;
+  right: -4px;
+  cursor: nwse-resize;
+}
+.sticky-resize-ne {
+  top: -4px;
+  right: -4px;
+  cursor: nesw-resize;
+}
+.sticky-resize-sw {
+  bottom: -4px;
+  left: -4px;
+  cursor: nesw-resize;
 }

@@ -65,10 +65,17 @@ pub struct StickySettings {
     /// Text and layout size in percent, so the note stays readable on a projector.
     #[serde(default = "default_scale")]
     pub scale: u16,
+    /// Header text above the current section, "YOU ARE HERE" by default.
+    #[serde(default = "default_label")]
+    pub label: String,
 }
 pub const SCALE_RANGE: std::ops::RangeInclusive<u16> = 75..=200;
+pub const LABEL_MAX_CHARS: usize = 40;
 fn default_scale() -> u16 {
     100
+}
+pub fn default_label() -> String {
+    "YOU ARE HERE".into()
 }
 impl Default for StickySettings {
     fn default() -> Self {
@@ -81,6 +88,7 @@ impl Default for StickySettings {
             compact: false,
             display: Display::Primary,
             scale: default_scale(),
+            label: default_label(),
         }
     }
 }
@@ -131,6 +139,13 @@ impl AgendaState {
         }
         if !SCALE_RANGE.contains(&self.settings.scale) {
             return Err("Sticky text size must be between 75% and 200%".into());
+        }
+        if self.settings.label.trim().is_empty()
+            || self.settings.label.chars().count() > LABEL_MAX_CHARS
+        {
+            return Err(format!(
+                "Sticky label must be 1 to {LABEL_MAX_CHARS} characters"
+            ));
         }
         let color = &self.settings.accent;
         if color.len() != 7

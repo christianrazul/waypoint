@@ -15,6 +15,8 @@ import {
 } from "../shared/agenda-store";
 import { Sticky } from "./Sticky";
 import { StickyEditor } from "./StickyEditor";
+import { ResizeHandles } from "./ResizeHandles";
+import type { StickySize } from "../shared/types";
 import { parseAgenda, sectionOffset, serializeAgenda } from "./markdown";
 import "../shared/tokens.css";
 import "./styles.css";
@@ -26,7 +28,13 @@ function StickyWindow() {
   const measureRef = useRef<() => void>(() => {});
   const [maxHeight, setMaxHeight] = useState<number>();
   const [busy, setBusy] = useState<Set<string>>(new Set());
+  const [size, setSize] = useState<StickySize>({ width: null, height: null });
   useEffect(connectAgendaState, []);
+  useEffect(() => {
+    commands
+      .getStickySize()
+      .then(setSize, (error) => useAgendaStore.getState().reportError(error));
+  }, []);
   const [draft, setDraft] = useState<{
     text: string;
     original: string;
@@ -183,64 +191,76 @@ function StickyWindow() {
       style={
         {
           "--sticky-scale": (state?.settings.scale ?? 100) / 100,
+          ...(size.width !== null && { "--sticky-width": `${size.width}px` }),
         } as React.CSSProperties
       }
     >
       {state ? (
         <div className="sticky-frame">
-          <Sticky
-            state={state}
-            busy={busy}
-            error={error}
-            maxHeight={
-              maxHeight === undefined
-                ? undefined
-                : Math.max(
-                    1,
-                    maxHeight -
-                      (state.settings.style === "paper"
-                        ? 13 * (state.settings.scale / 100)
-                        : 0),
+          <div className="sticky-box">
+            <Sticky
+              state={state}
+              busy={busy}
+              error={error}
+              height={size.height ?? undefined}
+              maxHeight={
+                maxHeight === undefined
+                  ? undefined
+                  : Math.max(
+                      1,
+                      maxHeight -
+                        (state.settings.style === "paper"
+                          ? 13 * (state.settings.scale / 100)
+                          : 0),
+                    )
+              }
+              onDone={setDone}
+              onDrag={() =>
+                void commands
+                  .startStickyDrag()
+                  .catch((error) =>
+                    useAgendaStore.getState().reportError(error),
                   )
-            }
-            onDone={setDone}
-            onDrag={() =>
-              void commands
-                .startStickyDrag()
-                .catch((error) => useAgendaStore.getState().reportError(error))
-            }
-            onSetup={() =>
-              void commands
-                .openSetup()
-                .catch((error) => useAgendaStore.getState().reportError(error))
-            }
-            onNavigate={(direction) =>
-              void runAgendaCommand(() => commands.navigateAgenda(direction))
-            }
-            onEdit={beginEdit}
-            editor={
-              draft && (
-                <StickyEditor
-                  value={draft.text}
-                  caret={draft.caret}
-                  focused={draft.focused}
-                  saving={draft.saving}
-                  maxHeight={maxHeight}
-                  scale={state.settings.scale / 100}
-                  onChange={(text) => {
-                    draftRef.current = draftRef.current && {
-                      ...draftRef.current,
-                      text,
-                    };
-                    setDraft(draftRef.current);
-                  }}
-                  onSave={() => void saveEdit()}
-                  onCancel={finishEdit}
-                  onActivate={refocusEdit}
-                />
-              )
-            }
-          />
+              }
+              onSetup={() =>
+                void commands
+                  .openSetup()
+                  .catch((error) =>
+                    useAgendaStore.getState().reportError(error),
+                  )
+              }
+              onNavigate={(direction) =>
+                void runAgendaCommand(() => commands.navigateAgenda(direction))
+              }
+              onEdit={beginEdit}
+              editor={
+                draft && (
+                  <StickyEditor
+                    value={draft.text}
+                    caret={draft.caret}
+                    focused={draft.focused}
+                    saving={draft.saving}
+                    maxHeight={maxHeight}
+                    scale={state.settings.scale / 100}
+                    onChange={(text) => {
+                      draftRef.current = draftRef.current && {
+                        ...draftRef.current,
+                        text,
+                      };
+                      setDraft(draftRef.current);
+                    }}
+                    onSave={() => void saveEdit()}
+                    onCancel={finishEdit}
+                    onActivate={refocusEdit}
+                  />
+                )
+              }
+            />
+            <ResizeHandles
+              onResized={setSize}
+              onError={(error) => useAgendaStore.getState().reportError(error)}
+            />
+          </div>
         </div>
       ) : error ? (
         <div className="sticky sticky-error" role="alert">
