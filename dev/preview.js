@@ -5,6 +5,9 @@ const agendaKey = "waypoint-preview-agenda-v1";
 let storedAgenda;
 try {
   storedAgenda = JSON.parse(localStorage.getItem(agendaKey));
+  // Fill settings added since the agenda was saved, as the app's serde defaults do.
+  if (storedAgenda)
+    storedAgenda.settings = { ...seed.settings, ...storedAgenda.settings };
 } catch {
   storedAgenda = null;
 }

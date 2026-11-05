@@ -45,7 +45,8 @@
     "accent": "#FFD25A",
     "compact": false,
     "display": "primary",
-    "scale": 100
+    "scale": 100,
+    "label": "YOU ARE HERE"
   },
   "revision": 0
 }

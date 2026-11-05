@@ -11,6 +11,8 @@ import type {
   Tool,
   ShortcutSnapshot,
   ShortcutAction,
+  ResizeEdges,
+  StickySize,
 } from "./types";
 
 export interface Events {
@@ -76,6 +78,14 @@ export const commands = {
   setAgendaItemDone: (sectionId: string, itemId: string, done: boolean) =>
     invoke<AgendaState>("set_agenda_item_done", { sectionId, itemId, done }),
   resizeSticky: (height: number) => invoke<number>("resize_sticky", { height }),
+  getStickySize: () => invoke<StickySize>("get_sticky_size"),
+  beginStickyResize: (width: number, height: number) =>
+    invoke<void>("begin_sticky_resize", { width, height }),
+  resizeStickyTo: (edges: ResizeEdges, dx: number, dy: number) =>
+    invoke<StickySize>("resize_sticky_to", { edges, dx, dy }),
+  endStickyResize: () => invoke<void>("end_sticky_resize"),
+  resetStickySize: (width: boolean, height: boolean) =>
+    invoke<StickySize>("reset_sticky_size", { width, height }),
   getDrawingState: () => invoke<DrawingState>("get_drawing_state"),
   selectTool: (tool: Tool) => invoke<void>("select_tool", { tool }),
   beginTextEdit: () => invoke<void>("begin_text_edit"),

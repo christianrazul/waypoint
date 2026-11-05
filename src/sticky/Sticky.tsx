@@ -79,6 +79,7 @@ export function Sticky({
   busy,
   error,
   maxHeight,
+  height,
   onDone,
   onNavigate,
   onDrag,
@@ -90,6 +91,8 @@ export function Sticky({
   busy: ReadonlySet<string>;
   error: string | null;
   maxHeight?: number;
+  /** Fixed note height the user resized to; content scrolls inside it. */
+  height?: number;
   onDone: (sectionId: string, itemId: string, done: boolean) => void;
   onNavigate: (direction: "previous" | "next") => void;
   onDrag?: () => void;
@@ -110,6 +113,7 @@ export function Sticky({
           : `rgba(30,34,42,${state.settings.opacity / 100})`,
     "--sticky-accent": state.settings.accent,
     maxHeight,
+    height,
   } as CSSProperties;
   return (
     <section
@@ -139,7 +143,7 @@ export function Sticky({
           }
         }}
       >
-        <span>{editor ? "EDITING AGENDA" : "YOU ARE HERE"}</span>
+        <span>{editor ? "EDITING AGENDA" : state.settings.label}</span>
         <span>
           {editor
             ? "Markdown"

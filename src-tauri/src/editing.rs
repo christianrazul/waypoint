@@ -63,6 +63,9 @@ pub enum AgendaEdit {
     Scale {
         scale: u16,
     },
+    Label {
+        label: String,
+    },
 }
 
 fn required(text: String, label: &str) -> Result<String, String> {
@@ -258,6 +261,21 @@ impl AgendaState {
                 }
                 self.settings.scale = scale;
             }
+            AgendaEdit::Label { label } => {
+                let label = label.trim();
+                if label.chars().count() > agenda::LABEL_MAX_CHARS {
+                    return Err(format!(
+                        "Sticky label must be at most {} characters",
+                        agenda::LABEL_MAX_CHARS
+                    ));
+                }
+                // Clearing the field brings back the default.
+                self.settings.label = if label.is_empty() {
+                    agenda::default_label()
+                } else {
+                    label.to_owned()
+                };
+            }
         }
         self.agenda.current_index = current_id
             .and_then(|id| self.agenda.sections.iter().position(|s| s.id == id))
@@ -419,6 +437,18 @@ mod tests {
         s.edit(AgendaEdit::Scale { scale: 150 }).unwrap();
         assert_eq!(s.settings.scale, 150);
         assert!(s.edit(AgendaEdit::Scale { scale: 50 }).is_err());
+        s.edit(AgendaEdit::Label {
+            label: "  Now covering ".into(),
+        })
+        .unwrap();
+        assert_eq!(s.settings.label, "Now covering");
+        s.edit(AgendaEdit::Label { label: " ".into() }).unwrap();
+        assert_eq!(s.settings.label, agenda::default_label());
+        assert!(s
+            .edit(AgendaEdit::Label {
+                label: "x".repeat(41)
+            })
+            .is_err());
         assert!(s
             .edit(AgendaEdit::RenameSection {
                 section_id: "intro".into(),

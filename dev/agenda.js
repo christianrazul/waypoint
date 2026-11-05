@@ -90,6 +90,11 @@ export function editPreviewAgenda(state, edit) {
         throw new Error("Sticky text size must be between 75% and 200%");
       state.settings.scale = edit.scale;
       break;
+    case "label":
+      if (edit.label.trim().length > 40)
+        throw new Error("Sticky label must be at most 40 characters");
+      state.settings.label = edit.label.trim() || "YOU ARE HERE";
+      break;
     default:
       throw new Error("Unknown preview edit");
   }

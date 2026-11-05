@@ -372,6 +372,19 @@ export function Setup({
           </p>
         </div>
         <div className="setup-group">
+          <h2>Header label</h2>
+          <DraftField
+            id="sticky-label"
+            label="Text above the current section"
+            value={state.settings.label}
+            onSave={(label) => saveEdit({ type: "label", label })}
+          />
+          <p className="field-hint">
+            Shown at the top of the sticky. Clear it to go back to "YOU ARE
+            HERE".
+          </p>
+        </div>
+        <div className="setup-group">
           <h2>Display</h2>
           <div className="position-options">
             {(

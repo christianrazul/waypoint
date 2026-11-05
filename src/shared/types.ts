@@ -78,6 +78,19 @@ export interface StickySettings {
   display: "primary" | "cursor";
   /** Text and layout size in percent (75–200). */
   scale: number;
+  /** Header text above the current section (default "YOU ARE HERE"). */
+  label: string;
+}
+/** Note size the user dragged to; unset dimensions follow the text size / content. */
+export interface StickySize {
+  width: number | null;
+  height: number | null;
+}
+export interface ResizeEdges {
+  left: boolean;
+  right: boolean;
+  top: boolean;
+  bottom: boolean;
 }
 export interface AgendaState {
   agenda: Agenda;
@@ -109,7 +122,8 @@ export type AgendaEdit =
   | { type: "corner"; corner: StickySettings["corner"] }
   | { type: "display"; display: StickySettings["display"] }
   | { type: "compact"; compact: boolean }
-  | { type: "scale"; scale: number };
+  | { type: "scale"; scale: number }
+  | { type: "label"; label: string };
 
 export type ShortcutAction =
   "next" | "previous" | "toggleDrawing" | "clear" | "toggleSticky";
